@@ -19,13 +19,34 @@ try {
 }
 const db = firebase.firestore();
 const auth = firebase.auth();
-const provider = new firebase.auth.GoogleAuthProvider();
 
 /* ========================================================
-   2. STATE MANAGEMENT
+   2. ACCESS CONTROL LIST (WHITELIST)
+   ======================================================== */
+const ALLOWED_USERS = {
+    // EMPLOYEES
+    'ali@nileprise.com': { name: 'Asif', role: 'Employee' },
+    'mdi@nileprise.com': { name: 'Ikram', role: 'Employee' },
+    'mmr@nileprise.com': { name: 'Manikanta', role: 'Employee' },
+    'maj@nileprise.com': { name: 'Mazher', role: 'Employee' },
+    'msa@nileprise.com': { name: 'Shoeb', role: 'Employee' },
+    
+    // MANAGERS
+    'fma@nileprise.com': { name: 'Fayaz', role: 'Manager' },
+    'an@nileprise.com': { name: 'Akhil', role: 'Manager' },
+    'aman@nileprise.com': { name: 'Sanketh', role: 'Manager' },
+    
+    // ADMINS (Add Sravanthi here when mail is available)
+    'nikhil@nileprise.com': { name: 'Nikhil Rapolu', role: 'Admin' },
+    'admin@nileprise.com': { name: 'Admin', role: 'Admin' }
+};
+
+/* ========================================================
+   3. STATE MANAGEMENT
    ======================================================== */
 const state = {
     user: null,
+    userRole: null, // New state for Role
     candidates: [],
     onboarding: [],
     filters: { text: '', recruiter: '', tech: '', status: '' },
@@ -41,11 +62,10 @@ const state = {
 };
 
 /* ========================================================
-   3. DOM ELEMENTS
+   4. DOM ELEMENTS
    ======================================================== */
 const dom = {
     screens: { auth: document.getElementById('auth-screen'), app: document.getElementById('dashboard-screen') },
-    loader: document.getElementById('loader'),
     navItems: document.querySelectorAll('.nav-item'),
     views: {
         dashboard: document.getElementById('view-dashboard'),
@@ -56,7 +76,9 @@ const dom = {
     },
     profile: {
         img: document.getElementById('user-avatar'),
-        name: document.getElementById('display-username')
+        name: document.getElementById('display-username'),
+        role: document.getElementById('display-role'),
+        profRole: document.getElementById('prof-role-display')
     },
     tables: {
         cand: { body: document.getElementById('table-body'), head: document.getElementById('table-head'), page: document.getElementById('page-info'), ctrls: document.getElementById('pagination-controls') },
@@ -75,52 +97,64 @@ const dom = {
 };
 
 /* ========================================================
-   4. INITIALIZATION & AUTH (FIXED)
+   5. INITIALIZATION & AUTH (WITH WHITELIST CHECK)
    ======================================================== */
 function init() {
-    toggleLoader(true);
-    
-    // SAFETY FORCE STOP: If loading takes > 2 seconds, stop spinner
-    setTimeout(() => {
-        if(dom.loader.classList.contains('active') && !state.user) {
-            console.warn("Forcing loader off due to timeout");
-            toggleLoader(false);
-            switchScreen('auth');
-        }
-    }, 2000);
-
     try {
         setupEventListeners();
         renderDropdowns();
         
         auth.onAuthStateChanged(user => {
             if (user) {
+                // SECURITY CHECK: Is this user in our ALLOWED_USERS list?
+                const email = user.email.toLowerCase();
+                if (!ALLOWED_USERS[email]) {
+                    // Unauthorized user found! Log them out immediately.
+                    auth.signOut();
+                    alert("Access Denied: Your email is not authorized for this portal.");
+                    switchScreen('auth');
+                    return;
+                }
+
+                // Authorized
                 state.user = user;
-                updateUserProfile(user);
+                state.userRole = ALLOWED_USERS[email].role;
+                updateUserProfile(user, ALLOWED_USERS[email]);
                 switchScreen('app');
                 initRealtimeListeners();
             } else {
                 switchScreen('auth');
-                toggleLoader(false);
             }
         });
     } catch (err) {
         console.error("Init failed:", err);
-        toggleLoader(false);
         alert("Startup Error: " + err.message);
     }
     
     if(localStorage.getItem('np_theme') === 'light') document.body.classList.add('light-mode');
 }
 
-function updateUserProfile(user) {
+function updateUserProfile(user, userData) {
     if(!user) return;
-    dom.profile.name.innerText = user.displayName ? user.displayName.split(' ')[0] : 'User';
-    dom.profile.img.src = user.photoURL || '';
+    
+    // Use the name from our whitelist, or fallback to Firebase name
+    const displayName = userData ? userData.name : (user.displayName || 'User');
+    dom.profile.name.innerText = displayName;
+    
+    // Display Role
+    const roleName = userData ? userData.role : 'Staff';
+    dom.profile.role.innerText = roleName;
+    dom.profile.profRole.innerText = roleName;
+    
     if(user.photoURL) {
+        dom.profile.img.src = user.photoURL;
         dom.profile.img.style.display = 'block';
         document.getElementById('user-avatar-placeholder').style.display = 'none';
+    } else {
+        dom.profile.img.style.display = 'none';
+        document.getElementById('user-avatar-placeholder').style.display = 'flex';
     }
+    
     document.getElementById('prof-email').value = user.email;
     document.getElementById('prof-last-login').value = new Date().toLocaleString();
 }
@@ -130,25 +164,79 @@ function switchScreen(screenName) {
     dom.screens.app.classList.toggle('active', screenName === 'app');
 }
 
-function toggleLoader(show) {
-    dom.loader.classList.toggle('active', show);
+/* --- AUTH ACTIONS --- */
+window.switchAuth = (target) => {
+    document.querySelectorAll('.auth-form').forEach(f => f.classList.remove('active'));
+    document.getElementById(`form-${target}`).classList.add('active');
+};
+
+window.handleLogin = () => {
+    const email = document.getElementById('login-email').value.trim().toLowerCase();
+    const pass = document.getElementById('login-pass').value;
+    
+    if(!email || !pass) return showToast("Please fill all fields");
+
+    // Pre-check whitelist before even asking Firebase
+    if(!ALLOWED_USERS[email]) {
+        return showToast("Access Denied: Email not authorized.");
+    }
+
+    auth.signInWithEmailAndPassword(email, pass)
+        .catch(err => showToast(cleanError(err.message)));
+};
+
+window.handleSignup = () => {
+    const name = document.getElementById('reg-name').value;
+    const email = document.getElementById('reg-email').value.trim().toLowerCase();
+    const pass = document.getElementById('reg-pass').value;
+    
+    if(!name || !email || !pass) return showToast("All fields are required");
+    
+    // CRITICAL: WHITELIST CHECK
+    if(!ALLOWED_USERS[email]) {
+        return showToast("Restricted: You are not on the authorized staff list.");
+    }
+
+    if(pass.length < 6) return showToast("Password must be at least 6 chars");
+
+    auth.createUserWithEmailAndPassword(email, pass)
+        .then((result) => {
+            return result.user.updateProfile({ displayName: name });
+        })
+        .then(() => {
+            showToast("Account Activated!");
+        })
+        .catch(err => showToast(cleanError(err.message)));
+};
+
+window.handleReset = () => {
+    const email = document.getElementById('reset-email').value;
+    if(!email) return showToast("Please enter your email");
+
+    auth.sendPasswordResetEmail(email)
+        .then(() => {
+            showToast("Reset link sent! Check your email.");
+            switchAuth('login');
+        })
+        .catch(err => showToast(cleanError(err.message)));
+};
+
+function cleanError(msg) {
+    return msg.replace('Firebase: ', '').replace('Error ', '').replace('(auth/', '').replace(').', '').replace(/-/g, ' ').toUpperCase();
 }
 
 /* ========================================================
-   5. REAL-TIME DATA SYNC
+   6. REAL-TIME DATA SYNC
    ======================================================== */
 function initRealtimeListeners() {
-    // Candidates
     db.collection('candidates').onSnapshot(snap => {
         state.candidates = [];
         snap.forEach(doc => state.candidates.push({ id: doc.id, ...doc.data() }));
         refreshAllTables();
         updateDashboardStats();
         document.getElementById('header-updated').innerText = 'Synced';
-        toggleLoader(false);
     }, err => console.error(err));
 
-    // Onboarding
     db.collection('onboarding').onSnapshot(snap => {
         state.onboarding = [];
         snap.forEach(doc => state.onboarding.push({ id: doc.id, ...doc.data() }));
@@ -162,7 +250,7 @@ function refreshAllTables() {
 }
 
 /* ========================================================
-   6. RENDER FUNCTIONS
+   7. RENDER FUNCTIONS
    ======================================================== */
 
 // --- Render Candidates ---
@@ -278,7 +366,7 @@ function renderOnboardingTable() {
 }
 
 /* ========================================================
-   7. UTILITY FUNCTIONS (Filter, Pagination, Inputs)
+   8. UTILITY FUNCTIONS (Filter, Pagination, Inputs)
    ======================================================== */
 function getFilteredData(data, filters, page) {
     const filtered = data.filter(item => {
@@ -407,22 +495,12 @@ window.toggleSelectAll = (type, mainCheckbox) => {
 };
 
 /* ========================================================
-   8. EVENT LISTENERS
+   9. EVENT LISTENERS
    ======================================================== */
 function setupEventListeners() {
-    // Google Login
-    const btnLogin = document.getElementById('btn-google-login');
-    if(btnLogin) {
-        btnLogin.addEventListener('click', () => {
-            auth.signInWithPopup(provider).catch(e => alert("Login Error: " + e.message));
-        });
-    }
-    
-    // Logout
     const btnLogout = document.getElementById('btn-logout');
     if(btnLogout) btnLogout.addEventListener('click', () => auth.signOut());
 
-    // Navigation
     dom.navItems.forEach(btn => {
         btn.addEventListener('click', e => {
             dom.navItems.forEach(b => b.classList.remove('active'));
@@ -437,13 +515,11 @@ function setupEventListeners() {
         });
     });
 
-    // Theme Toggle
     document.getElementById('theme-toggle').addEventListener('click', () => {
         document.body.classList.toggle('light-mode');
         localStorage.setItem('np_theme', document.body.classList.contains('light-mode') ? 'light' : 'dark');
     });
 
-    // Filtering
     document.getElementById('search-input').addEventListener('input', e => { state.filters.text = e.target.value.toLowerCase(); state.pagination.cand = 1; renderCandidateTable(); });
     document.getElementById('hub-search-input').addEventListener('input', e => { state.hubFilters.text = e.target.value.toLowerCase(); state.pagination.hub = 1; renderHubTable(); });
     
@@ -452,7 +528,6 @@ function setupEventListeners() {
     const techFilter = document.getElementById('filter-tech');
     techFilter.addEventListener('change', e => { state.filters.tech = e.target.value; renderCandidateTable(); });
 
-    // Status Filter Buttons
     document.querySelectorAll('.btn-toggle').forEach(btn => {
         btn.addEventListener('click', e => {
             document.querySelectorAll('.btn-toggle').forEach(b => b.classList.remove('active'));
@@ -462,7 +537,6 @@ function setupEventListeners() {
         });
     });
 
-    // Add Buttons
     document.getElementById('btn-add-candidate').addEventListener('click', () => {
         openAddModal();
     });
@@ -474,7 +548,6 @@ function setupEventListeners() {
         });
     });
 
-    // Delete Buttons
     document.getElementById('btn-delete-selected').addEventListener('click', () => {
         openDeleteModal('cand');
     });
@@ -492,7 +565,7 @@ function renderDropdowns() {
 }
 
 /* ========================================================
-   9. MODAL LOGIC (ACTIVITY)
+   10. MODAL LOGIC (ACTIVITY)
    ======================================================== */
 window.openModal = (id, type, name) => {
     state.modal.id = id;
@@ -538,7 +611,7 @@ function renderModalContent() {
 }
 
 /* ========================================================
-   10. MODAL LOGIC (ADD CANDIDATE VALIDATION)
+   11. MODAL LOGIC (ADD CANDIDATE VALIDATION)
    ======================================================== */
 window.openAddModal = () => {
     const techSel = document.getElementById('add-tech');
@@ -569,11 +642,10 @@ window.validateAndSaveCandidate = () => {
     if (!phoneRegex.test(mobile)) errors.push("Mobile number must be at least 10 digits.");
 
     if (errors.length > 0) {
-        showToast("?? " + errors[0]);
+        showToast("⚠️ " + errors[0]);
         return;
     }
 
-    toggleLoader(true);
     db.collection('candidates').add({
         first, last, mobile, wa, tech, recruiter,
         status: 'Active',
@@ -581,18 +653,16 @@ window.validateAndSaveCandidate = () => {
         comments: '',
         submissionLog: [], screeningLog: [], interviewLog: []
     }).then(() => {
-        toggleLoader(false);
         showToast("Candidate Added Successfully");
         closeAddModal();
     }).catch(err => {
-        toggleLoader(false);
         console.error(err);
         showToast("Error adding candidate");
     });
 };
 
 /* ========================================================
-   11. DELETE MODAL LOGIC
+   12. DELETE MODAL LOGIC
    ======================================================== */
 window.openDeleteModal = (type) => {
     const count = state.selection[type].size;
@@ -635,7 +705,7 @@ window.executeDelete = () => {
 };
 
 /* ========================================================
-   12. EXPORT DATA
+   13. EXPORT DATA
    ======================================================== */
 window.exportData = () => {
     if (state.candidates.length === 0) {
@@ -670,7 +740,7 @@ window.exportData = () => {
 };
 
 /* ========================================================
-   13. CHARTS & TOAST
+   14. CHARTS & TOAST
    ======================================================== */
 function updateDashboardStats() {
     document.getElementById('stat-total').innerText = state.candidates.length;
