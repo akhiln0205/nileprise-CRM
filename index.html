@@ -7,7 +7,7 @@
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="style.css?v=5">
 </head>
 <body>
 
@@ -17,6 +17,8 @@
     <div class="blob blob-3"></div>
   </div>
 
+  <div id="toast" class="toast"><i class="fa-solid fa-circle-info"></i><span id="toast-msg">Notification</span></div>
+
   <div id="app" class="app-container">
 
     <section id="auth-screen" class="screen active">
@@ -24,13 +26,51 @@
         <div class="brand-large"><span class="text-cyan">N</span><span class="text-white">ILE</span><span class="text-gold">PRISE</span></div>
         <p class="subtitle">Next Innovative Leading Enterprises</p>
         
-        <div class="login-spacer"></div>
-        
-        <button id="btn-google-login" class="btn btn-google">
-          <i class="fa-brands fa-google"></i> Sign in with Google
-        </button>
+        <div id="form-login" class="auth-form active">
+            <h3 class="form-title">Secure Portal Login</h3>
+            <div class="input-group">
+                <i class="fa-solid fa-envelope"></i>
+                <input type="email" id="login-email" placeholder="Official Email ID">
+            </div>
+            <div class="input-group">
+                <i class="fa-solid fa-lock"></i>
+                <input type="password" id="login-pass" placeholder="Password">
+            </div>
+            <div class="form-actions">
+                <span class="link-text" onclick="switchAuth('forgot')">Forgot Password?</span>
+            </div>
+            <button class="btn btn-primary btn-block" onclick="handleLogin()">Login</button>
+            <p class="switch-text">First time? <span onclick="switchAuth('signup')">Activate Account</span></p>
+        </div>
 
-        <p style="margin-top:20px; font-size:0.8rem; color:#94a3b8;">Secure access for authorized staff only.</p>
+        <div id="form-signup" class="auth-form">
+            <h3 class="form-title">Activate Account</h3>
+            <p style="font-size:0.8rem; color:var(--text-muted); margin-bottom:15px;">Only authorized Nileprise staff can register.</p>
+            <div class="input-group">
+                <i class="fa-solid fa-user"></i>
+                <input type="text" id="reg-name" placeholder="Full Name">
+            </div>
+            <div class="input-group">
+                <i class="fa-solid fa-envelope"></i>
+                <input type="email" id="reg-email" placeholder="Official Email ID">
+            </div>
+            <div class="input-group">
+                <i class="fa-solid fa-lock"></i>
+                <input type="password" id="reg-pass" placeholder="Set Password (Min 6 chars)">
+            </div>
+            <button class="btn btn-primary btn-block" onclick="handleSignup()">Register</button>
+            <p class="switch-text">Back to <span onclick="switchAuth('login')">Login</span></p>
+        </div>
+
+        <div id="form-forgot" class="auth-form">
+            <h3 class="form-title">Reset Password</h3>
+            <div class="input-group">
+                <i class="fa-solid fa-envelope"></i>
+                <input type="email" id="reset-email" placeholder="Official Email ID">
+            </div>
+            <button class="btn btn-primary btn-block" onclick="handleReset()">Send Reset Link</button>
+            <p class="switch-text"><span onclick="switchAuth('login')">Back to Login</span></p>
+        </div>
       </div>
     </section>
 
@@ -57,10 +97,9 @@
             <div class="admin-pill">
               <img id="user-avatar" src="" class="avatar-img-small" style="display:none;">
               <div id="user-avatar-placeholder" class="avatar"><i class="fa-solid fa-user"></i></div>
-              
               <div class="admin-text">
                 <span id="display-username">Loading...</span>
-                <small class="online-status">? Online</small>
+                <small id="display-role" class="online-status" style="color:var(--accent); text-transform: uppercase; font-size:0.7rem; font-weight:bold;">Role</small>
               </div>
               <div class="v-divider-small"></div>
               <button id="btn-logout" class="logout-icon"><i class="fa-solid fa-power-off"></i></button>
@@ -142,7 +181,7 @@
                   <img id="profile-main-img" src="" class="avatar-img" style="display:none;">
                   <div id="profile-main-icon" class="avatar-placeholder"><i class="fa-solid fa-user"></i></div>
                 </div>
-                <div class="profile-names"><h2 id="prof-name-display">User Name</h2><p class="role">Verified Google Account</p></div>
+                <div class="profile-names"><h2 id="prof-name-display">User Name</h2><p id="prof-role-display" class="role">Staff Member</p></div>
               </div>
             </div>
             <div class="profile-body">
@@ -171,8 +210,6 @@
       </main>
     </section>
   </div>
-
-  <div id="toast" class="toast"><i class="fa-solid fa-circle-check"></i><span id="toast-msg">Success</span></div>
 
   <div id="activity-modal" class="modal-overlay">
     <div class="glass-panel modal-box">
@@ -240,6 +277,6 @@
   <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
-  <script src="script.js"></script>
+  <script src="script.js?v=5"></script>
 </body>
 </html>
