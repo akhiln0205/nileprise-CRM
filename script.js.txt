@@ -1,529 +1,716 @@
-/* --- STATE & DATA --- */
-const DB = {
-  candidates: JSON.parse(localStorage.getItem('np_candidates') || '[]'),
-  onboarding: JSON.parse(localStorage.getItem('np_onboarding') || '[]'),
-  recruiters: ["Asif", "Ikram", "Manikanta", "Mazher", "Shoeb"],
-  techs: ["React", "Node.js", "Java", "Python", ".NET", "AWS"]
+/* ========================================================
+   1. FIREBASE CONFIGURATION
+   ======================================================== */
+const firebaseConfig = {
+  apiKey: "AIzaSyAKth3o5XhUTLNZ8JSbsKPKEIHmqhTHHH4",
+  authDomain: "nileprise-crm.firebaseapp.com",
+  projectId: "nileprise-crm",
+  storageBucket: "nileprise-crm.firebasestorage.app",
+  messagingSenderId: "1090344693240",
+  appId: "1:1090344693240:web:68be4d7df18c82232b7a0d",
+  measurementId: "G-RP3R2P9JPF"
 };
 
-let state = {
-  currentPage: 1,
-  rowsPerPage: 10,
-  filter: "",
-  recruiterFilter: "",
-  techFilter: "",
-  statusFilter: "",
-  selectedIds: new Set(),
-  hubPage: 1,
-  hubFilter: "",
-  onboardingPage: 1,
-  onboardingSelectedIds: new Set(),
-  // Temp state for modal
-  activeCandidateId: null,
-  activeActivityType: null
+// Initialize Firebase
+try {
+  firebase.initializeApp(firebaseConfig);
+} catch (e) {
+  console.error("Firebase Init Error:", e);
+}
+const db = firebase.firestore();
+const auth = firebase.auth();
+const provider = new firebase.auth.GoogleAuthProvider();
+
+/* ========================================================
+   2. STATE MANAGEMENT
+   ======================================================== */
+const state = {
+    user: null,
+    candidates: [],
+    onboarding: [],
+    filters: { text: '', recruiter: '', tech: '', status: '' },
+    hubFilters: { text: '' },
+    pagination: { cand: 1, hub: 1, onb: 1, limit: 10 },
+    selection: { cand: new Set(), onb: new Set() },
+    modal: { id: null, type: null },
+    pendingDelete: { type: null },
+    metadata: {
+        recruiters: ["Asif", "Ikram", "Manikanta", "Mazher", "Shoeb"],
+        techs: ["React", "Node.js", "Java", "Python", ".NET", "AWS"]
+    }
 };
 
-/* --- DOM CACHE --- */
+/* ========================================================
+   3. DOM ELEMENTS
+   ======================================================== */
 const dom = {
-  screens: { auth: document.getElementById('auth-screen'), dashboard: document.getElementById('dashboard-screen') },
-  forms: { login: document.getElementById('form-login'), signup: document.getElementById('form-signup') },
-  nav: document.querySelectorAll('.nav-item'),
-  views: { 
-    dashboard: document.getElementById('view-dashboard'), 
-    candidates: document.getElementById('view-candidates'), 
-    hub: document.getElementById('view-hub'), 
-    onboarding: document.getElementById('view-onboarding'),
-    profile: document.getElementById('view-profile'), 
-    settings: document.getElementById('view-settings') 
-  },
-  // Tables
-  table: { head: document.getElementById('table-head'), body: document.getElementById('table-body'), pagination: document.getElementById('pagination-controls'), pageInfo: document.getElementById('page-info'), perPage: document.getElementById('rows-per-page'), search: document.getElementById('search-input'), recFilter: document.getElementById('filter-recruiter'), techFilter: document.getElementById('filter-tech'), btnReset: document.getElementById('btn-reset-filters'), btnAdd: document.getElementById('btn-add-candidate'), btnDelete: document.getElementById('btn-delete-selected'), selectedCount: document.getElementById('selected-count') },
-  hubTable: { head: document.getElementById('hub-table-head'), body: document.getElementById('hub-table-body'), pagination: document.getElementById('hub-pagination-controls'), pageInfo: document.getElementById('hub-page-info'), search: document.getElementById('hub-search-input') },
-  onbTable: { head: document.getElementById('onboarding-table-head'), body: document.getElementById('onboarding-table-body'), pagination: document.getElementById('onboarding-pagination-controls'), pageInfo: document.getElementById('onboarding-page-info'), btnAdd: document.getElementById('btn-add-onboarding'), btnDelete: document.getElementById('btn-delete-onboarding'), selectedCount: document.getElementById('onboarding-selected-count') },
-  // Modal
-  modal: { overlay: document.getElementById('activity-modal'), title: document.getElementById('act-modal-title'), week: document.getElementById('act-week'), month: document.getElementById('act-month'), total: document.getElementById('act-total'), input: document.getElementById('act-date-input'), list: document.getElementById('act-history-list') },
-  // General
-  stats: { total: document.getElementById('stat-total'), tech: document.getElementById('stat-tech'), rec: document.getElementById('stat-rec') },
-  themeToggle: document.getElementById('theme-toggle'),
-  statusToggles: document.querySelectorAll('.btn-toggle'),
-  profileUser: document.getElementById('display-username'),
-  profileNameDisplay: document.getElementById('prof-name-display'),
-  profileEmail: document.getElementById('prof-email'),
-  profileUsername: document.getElementById('prof-username'),
-  headerUpdated: document.getElementById('header-updated'),
-  logoutBtn: document.getElementById('btn-logout'),
-  tabLogin: document.getElementById('tab-login'),
-  tabSignup: document.getElementById('tab-signup'),
-  settingThemeToggle: document.getElementById('setting-theme-toggle'),
-  btnDeletePhoto: document.getElementById('btn-delete-photo')
+    screens: { auth: document.getElementById('auth-screen'), app: document.getElementById('dashboard-screen') },
+    loader: document.getElementById('loader'),
+    navItems: document.querySelectorAll('.nav-item'),
+    views: {
+        dashboard: document.getElementById('view-dashboard'),
+        candidates: document.getElementById('view-candidates'),
+        hub: document.getElementById('view-hub'),
+        onboarding: document.getElementById('view-onboarding'),
+        settings: document.getElementById('view-settings')
+    },
+    profile: {
+        img: document.getElementById('user-avatar'),
+        name: document.getElementById('display-username')
+    },
+    tables: {
+        cand: { body: document.getElementById('table-body'), head: document.getElementById('table-head'), page: document.getElementById('page-info'), ctrls: document.getElementById('pagination-controls') },
+        hub: { body: document.getElementById('hub-table-body'), head: document.getElementById('hub-table-head'), page: document.getElementById('hub-page-info'), ctrls: document.getElementById('hub-pagination-controls') },
+        onb: { body: document.getElementById('onboarding-table-body'), head: document.getElementById('onboarding-table-head'), page: document.getElementById('onboarding-page-info'), ctrls: document.getElementById('onboarding-pagination-controls') }
+    },
+    modal: {
+        self: document.getElementById('activity-modal'),
+        title: document.getElementById('act-modal-title'),
+        week: document.getElementById('act-week'),
+        month: document.getElementById('act-month'),
+        total: document.getElementById('act-total'),
+        input: document.getElementById('act-date-input'),
+        list: document.getElementById('act-history-list')
+    }
 };
 
-/* --- INITIALIZATION --- */
+/* ========================================================
+   4. INITIALIZATION & AUTH (FIXED)
+   ======================================================== */
 function init() {
-  if (DB.candidates.length === 0) seedData();
-  else migrateData(); // Ensure legacy data works with new array structure
-  if (DB.onboarding.length === 0) seedOnboardingData();
+    toggleLoader(true);
+    
+    // SAFETY FORCE STOP: If loading takes > 2 seconds, stop spinner
+    setTimeout(() => {
+        if(dom.loader.classList.contains('active') && !state.user) {
+            console.warn("Forcing loader off due to timeout");
+            toggleLoader(false);
+            switchScreen('auth');
+        }
+    }, 2000);
 
-  setupEventListeners();
-  populateDropdowns();
-  renderTableHeaders();
-  renderOnboardingHeaders();
-  renderHubHeaders(); 
-  
-  const savedTheme = localStorage.getItem('np_theme');
-  if (savedTheme === 'light') {
-    document.body.classList.add('light-mode');
-    dom.themeToggle.innerHTML = '<i class="fa-solid fa-moon"></i>';
-    if(dom.settingThemeToggle) dom.settingThemeToggle.checked = false; 
-  }
-  const lastUp = localStorage.getItem('np_last_updated');
-  if(lastUp) dom.headerUpdated.innerText = lastUp;
-  
-  if(localStorage.getItem('np_profile_data')) {
-      loadProfilePhoto();
-      loadProfileData();
-      dom.screens.auth.classList.remove('active'); 
-      dom.screens.dashboard.classList.add('active'); 
-      updateTable(); 
-      updateDashboard();
-  }
-}
-
-// Ensure old integer counters are converted to arrays if needed
-function migrateData() {
-    let changed = false;
-    DB.candidates.forEach(c => {
-        if (typeof c.submissions === 'number') { c.submissionLog = generateDummyLogs(c.submissions); delete c.submissions; changed = true; }
-        if (typeof c.screenings === 'number') { c.screeningLog = generateDummyLogs(c.screenings); delete c.screenings; changed = true; }
-        if (typeof c.interviews === 'number') { c.interviewLog = generateDummyLogs(c.interviews); delete c.interviews; changed = true; }
-        // Ensure arrays exist
-        if (!c.submissionLog) c.submissionLog = [];
-        if (!c.screeningLog) c.screeningLog = [];
-        if (!c.interviewLog) c.interviewLog = [];
-    });
-    if(changed) saveData();
-}
-
-function generateDummyLogs(count) {
-    const logs = [];
-    for(let i=0; i<count; i++) {
-        const d = new Date();
-        d.setDate(d.getDate() - Math.floor(Math.random() * 30));
-        logs.push(d.toISOString().split('T')[0]);
+    try {
+        setupEventListeners();
+        renderDropdowns();
+        
+        auth.onAuthStateChanged(user => {
+            if (user) {
+                state.user = user;
+                updateUserProfile(user);
+                switchScreen('app');
+                initRealtimeListeners();
+            } else {
+                switchScreen('auth');
+                toggleLoader(false);
+            }
+        });
+    } catch (err) {
+        console.error("Init failed:", err);
+        toggleLoader(false);
+        alert("Startup Error: " + err.message);
     }
-    return logs.sort().reverse();
+    
+    if(localStorage.getItem('np_theme') === 'light') document.body.classList.add('light-mode');
 }
 
-function seedData() {
-  for (let i = 1; i <= 25; i++) {
-    DB.candidates.push({
-      id: Date.now() + i,
-      first: `Candidate`, last: `${i}`,
-      mobile: `98765432${i < 10 ? '0'+i : i}`, wa: `98765432${i < 10 ? '0'+i : i}`,
-      tech: DB.techs[Math.floor(Math.random() * DB.techs.length)],
-      recruiter: DB.recruiters[Math.floor(Math.random() * DB.recruiters.length)],
-      status: i % 3 === 0 ? "Inactive" : "Active", 
-      linkedin: "https://linkedin.com", resume: "https://resume.com", track: "", 
-      assigned: new Date().toISOString().split('T')[0],
-      gmail: "mailto:test@gmail.com", comments: "",
-      submissionLog: generateDummyLogs(Math.floor(Math.random() * 10)),
-      screeningLog: generateDummyLogs(Math.floor(Math.random() * 5)),
-      interviewLog: generateDummyLogs(Math.floor(Math.random() * 3))
-    });
-  }
-  saveData();
-}
-
-function seedOnboardingData() {
-    for (let i = 1; i <= 5; i++) {
-        DB.onboarding.push({ id: Date.now() + i + 1000, first: `NewJoinee`, last: `${i}`, mobile: `999999990${i}`, wa: `999999990${i}`, tech: DB.techs[Math.floor(Math.random() * DB.techs.length)], recruiter: DB.recruiters[Math.floor(Math.random() * DB.recruiters.length)], status: "Onboarding", assigned: new Date().toISOString().split('T')[0], comments: "Docs pending" });
+function updateUserProfile(user) {
+    if(!user) return;
+    dom.profile.name.innerText = user.displayName ? user.displayName.split(' ')[0] : 'User';
+    dom.profile.img.src = user.photoURL || '';
+    if(user.photoURL) {
+        dom.profile.img.style.display = 'block';
+        document.getElementById('user-avatar-placeholder').style.display = 'none';
     }
-    saveData();
+    document.getElementById('prof-email').value = user.email;
+    document.getElementById('prof-last-login').value = new Date().toLocaleString();
 }
 
-function populateDropdowns() {
-  const recOpts = DB.recruiters.map(r => `<option value="${r}">${r}</option>`).join('');
-  dom.table.recFilter.innerHTML = `<option value="">All Recruiters</option>` + recOpts;
-  const techOpts = DB.techs.map(t => `<option value="${t}">${t}</option>`).join('');
-  dom.table.techFilter.innerHTML = `<option value="">All Tech</option>` + techOpts;
+function switchScreen(screenName) {
+    dom.screens.auth.classList.toggle('active', screenName === 'auth');
+    dom.screens.app.classList.toggle('active', screenName === 'app');
 }
 
-function switchAuthTab(type) {
-  if(type === 'login') {
-    dom.tabLogin.classList.add('active'); dom.tabSignup.classList.remove('active');
-    dom.forms.login.style.display='block'; dom.forms.signup.style.display='none';
-  } else {
-    dom.tabSignup.classList.add('active'); dom.tabLogin.classList.remove('active');
-    dom.forms.signup.style.display='block'; dom.forms.login.style.display='none';
-  }
+function toggleLoader(show) {
+    dom.loader.classList.toggle('active', show);
 }
-window.switchAuthTab = switchAuthTab;
 
-/* --- LISTENERS --- */
+/* ========================================================
+   5. REAL-TIME DATA SYNC
+   ======================================================== */
+function initRealtimeListeners() {
+    // Candidates
+    db.collection('candidates').onSnapshot(snap => {
+        state.candidates = [];
+        snap.forEach(doc => state.candidates.push({ id: doc.id, ...doc.data() }));
+        refreshAllTables();
+        updateDashboardStats();
+        document.getElementById('header-updated').innerText = 'Synced';
+        toggleLoader(false);
+    }, err => console.error(err));
+
+    // Onboarding
+    db.collection('onboarding').onSnapshot(snap => {
+        state.onboarding = [];
+        snap.forEach(doc => state.onboarding.push({ id: doc.id, ...doc.data() }));
+        renderOnboardingTable();
+    });
+}
+
+function refreshAllTables() {
+    renderCandidateTable();
+    renderHubTable();
+}
+
+/* ========================================================
+   6. RENDER FUNCTIONS
+   ======================================================== */
+
+// --- Render Candidates ---
+function renderCandidateTable() {
+    const { filtered, totalPages } = getFilteredData(state.candidates, state.filters, state.pagination.cand);
+    
+    const headers = [
+        '<input type="checkbox" id="select-all-cand" onclick="toggleSelectAll(\'cand\', this)">', 
+        '#', 'First Name', 'Last Name', 'Mobile', 'WhatsApp', 'Tech', 'Recruiter', 'Status', 'Assigned', 'Gmail', 'LinkedIn', 'Resume', 'Track', 'Comments'
+    ];
+    dom.tables.cand.head.innerHTML = `<tr>${headers.map(h => `<th>${h}</th>`).join('')}</tr>`;
+
+    dom.tables.cand.body.innerHTML = filtered.map((c, i) => {
+        const idx = (state.pagination.cand - 1) * state.pagination.limit + i + 1;
+        const isSel = state.selection.cand.has(c.id) ? 'checked' : '';
+        const rowClass = state.selection.cand.has(c.id) ? 'selected-row' : '';
+        
+        return `
+        <tr class="${rowClass}">
+            <td><input type="checkbox" ${isSel} onchange="toggleSelect('${c.id}', 'cand')"></td>
+            <td>${idx}</td>
+            <td onclick="inlineEdit('${c.id}', 'first', 'candidates', this)">${c.first}</td>
+            <td onclick="inlineEdit('${c.id}', 'last', 'candidates', this)">${c.last}</td>
+            <td onclick="inlineEdit('${c.id}', 'mobile', 'candidates', this)">${c.mobile}</td>
+            <td onclick="inlineEdit('${c.id}', 'wa', 'candidates', this)">${c.wa}</td>
+            <td onclick="inlineEdit('${c.id}', 'tech', 'candidates', this)">${c.tech}</td>
+            <td onclick="editRecruiter('${c.id}', 'candidates', this)">${c.recruiter}</td>
+            <td>
+                <select class="status-select ${c.status.toLowerCase()}" onchange="updateStatus('${c.id}', 'candidates', this.value)">
+                    <option value="Active" ${c.status==='Active'?'selected':''}>Active</option>
+                    <option value="Inactive" ${c.status==='Inactive'?'selected':''}>Inactive</option>
+                </select>
+            </td>
+            <td>${c.assigned}</td>
+            <td>-</td><td>-</td><td>-</td><td>-</td>
+            <td onclick="inlineEdit('${c.id}', 'comments', 'candidates', this)">${c.comments || '-'}</td>
+        </tr>`;
+    }).join('');
+
+    renderPagination(dom.tables.cand, totalPages, 'cand');
+}
+
+// --- Render Hub ---
+function renderHubTable() {
+    const filtered = state.candidates.filter(c => 
+        (c.first + ' ' + c.last).toLowerCase().includes(state.hubFilters.text)
+    );
+    const totalPages = Math.ceil(filtered.length / state.pagination.limit);
+    const start = (state.pagination.hub - 1) * state.pagination.limit;
+    const pageData = filtered.slice(start, start + state.pagination.limit);
+
+    const headers = ['#', 'Name', 'Tech', 'Submissions', 'Screenings', 'Interviews', 'Last Activity'];
+    dom.tables.hub.head.innerHTML = `<tr>${headers.map(h => `<th>${h}</th>`).join('')}</tr>`;
+
+    dom.tables.hub.body.innerHTML = pageData.map((c, i) => {
+        const idx = start + i + 1;
+        const subLen = c.submissionLog ? c.submissionLog.length : 0;
+        const scrLen = c.screeningLog ? c.screeningLog.length : 0;
+        const intLen = c.interviewLog ? c.interviewLog.length : 0;
+        
+        let lastAct = '-';
+        if(c.interviewLog && c.interviewLog.length) lastAct = c.interviewLog.sort().reverse()[0];
+
+        return `
+        <tr>
+            <td>${idx}</td>
+            <td>${c.first} ${c.last}</td>
+            <td>${c.tech}</td>
+            <td class="text-cyan" style="font-weight:bold; cursor:pointer" onclick="openModal('${c.id}', 'submissionLog', '${c.first}')">${subLen}</td>
+            <td class="text-cyan" style="font-weight:bold; cursor:pointer" onclick="openModal('${c.id}', 'screeningLog', '${c.first}')">${scrLen}</td>
+            <td class="text-cyan" style="font-weight:bold; cursor:pointer" onclick="openModal('${c.id}', 'interviewLog', '${c.first}')">${intLen}</td>
+            <td>${lastAct}</td>
+        </tr>`;
+    }).join('');
+
+    renderPagination(dom.tables.hub, totalPages, 'hub');
+}
+
+// --- Render Onboarding ---
+function renderOnboardingTable() {
+    const totalPages = Math.ceil(state.onboarding.length / state.pagination.limit);
+    const start = (state.pagination.onb - 1) * state.pagination.limit;
+    const pageData = state.onboarding.slice(start, start + state.pagination.limit);
+
+    const headers = [
+        '<input type="checkbox" id="select-all-onb" onclick="toggleSelectAll(\'onb\', this)">',
+        '#', 'First Name', 'Last Name', 'Mobile', 'Status', 'Assigned', 'Comments'
+    ];
+    dom.tables.onb.head.innerHTML = `<tr>${headers.map(h => `<th>${h}</th>`).join('')}</tr>`;
+
+    dom.tables.onb.body.innerHTML = pageData.map((c, i) => {
+        const idx = start + i + 1;
+        const isSel = state.selection.onb.has(c.id) ? 'checked' : '';
+        return `
+        <tr>
+            <td><input type="checkbox" ${isSel} onchange="toggleSelect('${c.id}', 'onb')"></td>
+            <td>${idx}</td>
+            <td onclick="inlineEdit('${c.id}', 'first', 'onboarding', this)">${c.first}</td>
+            <td onclick="inlineEdit('${c.id}', 'last', 'onboarding', this)">${c.last}</td>
+            <td onclick="inlineEdit('${c.id}', 'mobile', 'onboarding', this)">${c.mobile}</td>
+            <td>
+                <select class="status-select ${c.status === 'Onboarding' ? 'active' : 'inactive'}" onchange="updateStatus('${c.id}', 'onboarding', this.value)">
+                    <option value="Onboarding" ${c.status==='Onboarding'?'selected':''}>Onboarding</option>
+                    <option value="Completed" ${c.status==='Completed'?'selected':''}>Completed</option>
+                </select>
+            </td>
+            <td>${c.assigned}</td>
+            <td onclick="inlineEdit('${c.id}', 'comments', 'onboarding', this)">${c.comments || '-'}</td>
+        </tr>`;
+    }).join('');
+
+    renderPagination(dom.tables.onb, totalPages, 'onb');
+}
+
+/* ========================================================
+   7. UTILITY FUNCTIONS (Filter, Pagination, Inputs)
+   ======================================================== */
+function getFilteredData(data, filters, page) {
+    const filtered = data.filter(item => {
+        const matchesText = (item.first + ' ' + item.last + ' ' + item.tech).toLowerCase().includes(filters.text);
+        const matchesRec = filters.recruiter ? item.recruiter === filters.recruiter : true;
+        const matchesTech = filters.tech ? item.tech === filters.tech : true;
+        const matchesStatus = filters.status ? item.status === filters.status : true;
+        return matchesText && matchesRec && matchesTech && matchesStatus;
+    });
+    
+    const start = (page - 1) * state.pagination.limit;
+    const paginated = filtered.slice(start, start + state.pagination.limit);
+    return { filtered: paginated, totalPages: Math.ceil(filtered.length / state.pagination.limit) };
+}
+
+function renderPagination(tableDom, total, type) {
+    tableDom.page.innerText = `Page ${state.pagination[type]} of ${total || 1}`;
+    let html = '';
+    for(let i=1; i<=total; i++) {
+        const active = i === state.pagination[type] ? 'active' : '';
+        html += `<button class="${active}" onclick="setPage(${i}, '${type}')">${i}</button>`;
+    }
+    tableDom.ctrls.innerHTML = html;
+}
+
+window.setPage = (p, type) => {
+    state.pagination[type] = p;
+    if(type === 'cand') renderCandidateTable();
+    if(type === 'hub') renderHubTable();
+    if(type === 'onb') renderOnboardingTable();
+}
+
+function inlineEdit(id, field, collection, el) {
+    if(el.querySelector('input')) return;
+    const val = el.innerText === '-' ? '' : el.innerText;
+    el.innerHTML = '';
+    const input = document.createElement('input');
+    input.className = 'inline-input';
+    input.value = val;
+    input.focus();
+    
+    const save = () => {
+        const newVal = input.value;
+        db.collection(collection).doc(id).update({ [field]: newVal });
+    };
+    input.addEventListener('blur', save);
+    input.addEventListener('keydown', e => { if(e.key === 'Enter') save(); });
+    el.appendChild(input);
+}
+
+function editRecruiter(id, collection, el) {
+    if(el.querySelector('select')) return;
+    const val = el.innerText;
+    el.innerHTML = '';
+    const sel = document.createElement('select');
+    sel.className = 'modern-select';
+    state.metadata.recruiters.forEach(r => {
+        const opt = document.createElement('option');
+        opt.value = r; opt.text = r;
+        if(r === val) opt.selected = true;
+        sel.appendChild(opt);
+    });
+    sel.focus();
+    const save = () => db.collection(collection).doc(id).update({ recruiter: sel.value });
+    sel.addEventListener('blur', save);
+    sel.addEventListener('change', save);
+    el.appendChild(sel);
+}
+
+window.updateStatus = (id, col, val) => db.collection(col).doc(id).update({ status: val });
+
+window.toggleSelect = (id, type) => {
+    if(state.selection[type].has(id)) state.selection[type].delete(id);
+    else state.selection[type].add(id);
+    
+    const btn = type === 'cand' ? document.getElementById('btn-delete-selected') : document.getElementById('btn-delete-onboarding');
+    const countSpan = type === 'cand' ? document.getElementById('selected-count') : document.getElementById('onboarding-selected-count');
+
+    if (state.selection[type].size > 0) {
+        btn.style.display = 'inline-flex';
+        btn.classList.remove('hidden');
+        if (countSpan) countSpan.innerText = state.selection[type].size;
+    } else {
+        btn.style.display = 'none';
+    }
+    
+    if(type === 'cand') renderCandidateTable();
+    else renderOnboardingTable();
+};
+
+window.toggleSelectAll = (type, mainCheckbox) => {
+    const isChecked = mainCheckbox.checked;
+    
+    let currentData = [];
+    if (type === 'cand') {
+        const result = getFilteredData(state.candidates, state.filters, state.pagination.cand);
+        currentData = result.filtered;
+    } else {
+        const start = (state.pagination.onb - 1) * state.pagination.limit;
+        currentData = state.onboarding.slice(start, start + state.pagination.limit);
+    }
+
+    currentData.forEach(item => {
+        if (isChecked) state.selection[type].add(item.id);
+        else state.selection[type].delete(item.id);
+    });
+
+    const btn = type === 'cand' ? document.getElementById('btn-delete-selected') : document.getElementById('btn-delete-onboarding');
+    const countSpan = type === 'cand' ? document.getElementById('selected-count') : document.getElementById('onboarding-selected-count');
+
+    if (state.selection[type].size > 0) {
+        btn.style.display = 'inline-flex';
+        btn.classList.remove('hidden');
+        if (countSpan) countSpan.innerText = state.selection[type].size;
+    } else {
+        btn.style.display = 'none';
+    }
+
+    if (type === 'cand') renderCandidateTable();
+    else renderOnboardingTable();
+    
+    setTimeout(() => {
+        const newMaster = document.getElementById(type === 'cand' ? 'select-all-cand' : 'select-all-onb');
+        if(newMaster) newMaster.checked = isChecked;
+    }, 0);
+};
+
+/* ========================================================
+   8. EVENT LISTENERS
+   ======================================================== */
 function setupEventListeners() {
-  dom.forms.login.addEventListener('submit', (e) => { 
-    e.preventDefault(); 
-    let userEmail = document.getElementById('login-user').value;
-    let userName = userEmail.includes('@') ? userEmail.split('@')[0] : userEmail;
-    if(!localStorage.getItem('np_profile_data')) {
-      const userProfile = { fullname: userName.charAt(0).toUpperCase() + userName.slice(1), username: userName, email: userEmail, phone: "", location: "" };
-      localStorage.setItem('np_profile_data', JSON.stringify(userProfile));
+    // Google Login
+    const btnLogin = document.getElementById('btn-google-login');
+    if(btnLogin) {
+        btnLogin.addEventListener('click', () => {
+            auth.signInWithPopup(provider).catch(e => alert("Login Error: " + e.message));
+        });
     }
-    loadProfileData();
-    dom.screens.auth.classList.remove('active'); dom.screens.dashboard.classList.add('active'); 
-    updateTable(); updateDashboard(); 
-  });
+    
+    // Logout
+    const btnLogout = document.getElementById('btn-logout');
+    if(btnLogout) btnLogout.addEventListener('click', () => auth.signOut());
 
-  dom.forms.signup.addEventListener('submit', (e) => {
-    e.preventDefault();
-    const name = document.getElementById('reg-user').value;
-    const email = document.getElementById('reg-email').value;
-    const userProfile = { fullname: name, username: email.split('@')[0], email: email, phone: "", location: "" };
-    localStorage.setItem('np_profile_data', JSON.stringify(userProfile));
-    alert('Account Created! Please Login.');
-    switchAuthTab('login'); document.getElementById('login-user').value = email; 
-  });
-
-  dom.logoutBtn.addEventListener('click', () => {
-    localStorage.removeItem('np_profile_data'); 
-    dom.screens.dashboard.classList.remove('active'); dom.screens.auth.classList.add('active');
-    dom.forms.login.reset(); showToast("Logged out");
-  });
-  
-  dom.themeToggle.addEventListener('click', () => {
-    document.body.classList.toggle('light-mode');
-    const isLight = document.body.classList.contains('light-mode');
-    dom.themeToggle.innerHTML = isLight ? '<i class="fa-solid fa-moon"></i>' : '<i class="fa-solid fa-sun"></i>';
-    localStorage.setItem('np_theme', isLight ? 'light' : 'dark');
-    if(dom.settingThemeToggle) dom.settingThemeToggle.checked = !isLight;
-  });
-
-  if(dom.settingThemeToggle) {
-      dom.settingThemeToggle.addEventListener('change', (e) => {
-         const isDark = e.target.checked;
-         if(isDark) { document.body.classList.remove('light-mode'); localStorage.setItem('np_theme', 'dark'); dom.themeToggle.innerHTML = '<i class="fa-solid fa-sun"></i>'; } 
-         else { document.body.classList.add('light-mode'); localStorage.setItem('np_theme', 'light'); dom.themeToggle.innerHTML = '<i class="fa-solid fa-moon"></i>'; }
-      });
-  }
-
-  dom.nav.forEach(btn => {
-    btn.addEventListener('click', (e) => {
-      document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
-      e.currentTarget.classList.add('active');
-      Object.values(dom.views).forEach(v => v.classList.remove('active'));
-      const targetId = e.currentTarget.dataset.target;
-      if(document.getElementById(targetId)) { document.getElementById(targetId).classList.add('active'); }
-      
-      if (targetId === 'view-dashboard') updateDashboard();
-      if (targetId === 'view-candidates') updateTable();
-      if (targetId === 'view-onboarding') updateOnboardingTable();
-      if (targetId === 'view-hub') updateHubTable();
+    // Navigation
+    dom.navItems.forEach(btn => {
+        btn.addEventListener('click', e => {
+            dom.navItems.forEach(b => b.classList.remove('active'));
+            e.currentTarget.classList.add('active');
+            Object.values(dom.views).forEach(v => v.classList.remove('active'));
+            
+            const target = e.currentTarget.dataset.target;
+            if(document.getElementById(target)) {
+                document.getElementById(target).classList.add('active');
+                if(target === 'view-dashboard') updateDashboardStats();
+            }
+        });
     });
-  });
 
-  // Table Filters
-  dom.table.search.addEventListener('input', (e) => { state.filter = e.target.value.toLowerCase(); state.currentPage = 1; updateTable(); });
-  dom.table.recFilter.addEventListener('change', (e) => { state.recruiterFilter = e.target.value; state.currentPage = 1; updateTable(); });
-  dom.table.techFilter.addEventListener('change', (e) => { state.techFilter = e.target.value; state.currentPage = 1; updateTable(); });
-  dom.table.perPage.addEventListener('change', (e) => { state.rowsPerPage = parseInt(e.target.value); state.currentPage = 1; updateTable(); });
-  dom.statusToggles.forEach(btn => { btn.addEventListener('click', (e) => { dom.statusToggles.forEach(b => b.classList.remove('active')); e.target.classList.add('active'); state.statusFilter = e.target.dataset.status; state.currentPage = 1; updateTable(); }); });
-  dom.table.btnReset.addEventListener('click', () => { state.filter = ""; state.recruiterFilter = ""; state.techFilter = ""; state.statusFilter = ""; dom.table.search.value = ""; dom.table.recFilter.value = ""; dom.table.techFilter.value = ""; dom.statusToggles.forEach(b => b.classList.remove('active')); dom.statusToggles[0].classList.add('active'); updateTable(); });
+    // Theme Toggle
+    document.getElementById('theme-toggle').addEventListener('click', () => {
+        document.body.classList.toggle('light-mode');
+        localStorage.setItem('np_theme', document.body.classList.contains('light-mode') ? 'light' : 'dark');
+    });
 
-  dom.table.btnAdd.addEventListener('click', () => addBlankRow());
-  dom.table.btnDelete.addEventListener('click', () => deleteSelectedRows());
-
-  // Hub Search
-  dom.hubTable.search.addEventListener('input', (e) => { state.hubFilter = e.target.value.toLowerCase(); state.hubPage = 1; updateHubTable(); });
-
-  // Onboarding Buttons
-  dom.onbTable.btnAdd.addEventListener('click', () => addBlankOnboardingRow());
-  dom.onbTable.btnDelete.addEventListener('click', () => deleteSelectedOnboardingRows());
-
-  document.getElementById('upload-photo').addEventListener('change', (e) => {
-    const file = e.target.files[0];
-    if(file) {
-      const reader = new FileReader();
-      reader.onload = function(e) { localStorage.setItem('np_profile_pic', e.target.result); loadProfilePhoto(); showToast("Profile Photo Updated"); };
-      reader.readAsDataURL(file);
-    }
-  });
-
-  if(dom.btnDeletePhoto) { dom.btnDeletePhoto.addEventListener('click', () => { if(confirm("Remove profile photo?")) { localStorage.removeItem('np_profile_pic'); loadProfilePhoto(); showToast("Photo Removed"); } }); }
-}
-
-function loadProfileData() {
-    const data = JSON.parse(localStorage.getItem('np_profile_data'));
-    if(data) {
-        if(document.getElementById('prof-fullname')) document.getElementById('prof-fullname').value = data.fullname || '';
-        if(document.getElementById('prof-phone')) document.getElementById('prof-phone').value = data.phone || '';
-        if(document.getElementById('prof-location')) document.getElementById('prof-location').value = data.location || '';
-        if(dom.profileUser) dom.profileUser.innerText = data.fullname || data.username || 'User';
-        if(dom.profileNameDisplay) dom.profileNameDisplay.innerText = data.fullname || 'User';
-        if(dom.profileEmail) dom.profileEmail.value = data.email || '';
-        if(dom.profileUsername) dom.profileUsername.value = data.username || '';
-    }
-}
-
-window.saveProfile = () => {
-    const profile = { fullname: document.getElementById('prof-fullname').value, phone: document.getElementById('prof-phone').value, location: document.getElementById('prof-location').value, email: document.getElementById('prof-email').value, username: document.getElementById('prof-username').value };
-    localStorage.setItem('np_profile_data', JSON.stringify(profile)); loadProfileData(); showToast("Profile Saved");
-};
-
-function loadProfilePhoto() {
-  const img = localStorage.getItem('np_profile_pic');
-  const imgs = document.querySelectorAll('.avatar-img');
-  const icons = document.querySelectorAll('.avatar i, .avatar-placeholder i'); 
-  const placeholders = document.querySelectorAll('.avatar, .avatar-placeholder'); 
-  if(img) { imgs.forEach(i => { i.src = img; i.style.display = 'block'; }); icons.forEach(i => i.style.display = 'none'); placeholders.forEach(p => p.style.background = 'none'); if(dom.btnDeletePhoto) dom.btnDeletePhoto.style.display = 'flex'; } 
-  else { imgs.forEach(i => { i.style.display = 'none'; i.src = ''; }); icons.forEach(i => i.style.display = 'block'); placeholders.forEach(p => p.style.background = 'var(--primary)'); if(document.getElementById('profile-main-icon')) document.getElementById('profile-main-icon').style.background = 'var(--bg-dark)'; if(dom.btnDeletePhoto) dom.btnDeletePhoto.style.display = 'none'; }
-}
-
-/* =========================================
-   CANDIDATE TABLE FUNCTIONS
-   ========================================= */
-const columns = [
-  { id: 'check', label: '<input type="checkbox" id="selectAll" onclick="toggleSelectAll(this)">' }, { id: 'sl', label: 'Sl No' }, { id: 'first', label: 'First Name' }, { id: 'last', label: 'Last Name' }, { id: 'mobile', label: 'Mobile' }, { id: 'wa', label: 'WhatsApp' }, { id: 'tech', label: 'Technology' }, { id: 'recruiter', label: 'Recruiter' }, { id: 'status', label: 'Status' }, { id: 'assigned', label: 'Assigned' }, { id: 'gmail', label: '<i class="fa-solid fa-envelope"></i>' }, { id: 'linkedin', label: '<i class="fa-brands fa-linkedin"></i>' }, { id: 'resume', label: '<i class="fa-solid fa-file"></i>' }, { id: 'track', label: '<i class="fa-solid fa-table"></i>' }, { id: 'comments', label: 'Comments' }
-];
-
-function renderTableHeaders() { dom.table.head.innerHTML = `<tr>${columns.map(c => `<th>${c.label}</th>`).join('')}</tr>`; }
-
-function getFilteredData() {
-  return DB.candidates.filter(c => {
-    const textMatch = c.first.toLowerCase().includes(state.filter) || c.last.toLowerCase().includes(state.filter) || c.tech.toLowerCase().includes(state.filter);
-    const recMatch = state.recruiterFilter === "" || c.recruiter === state.recruiterFilter;
-    const techMatch = state.techFilter === "" || c.tech === state.techFilter;
-    const statusMatch = state.statusFilter === "" || c.status === state.statusFilter;
-    return textMatch && recMatch && techMatch && statusMatch;
-  });
-}
-
-function updateTable() {
-  const filtered = getFilteredData();
-  const totalPages = Math.ceil(filtered.length / state.rowsPerPage);
-  if (state.currentPage > totalPages) state.currentPage = totalPages || 1;
-  const start = (state.currentPage - 1) * state.rowsPerPage;
-  const pageData = filtered.slice(start, start + state.rowsPerPage);
-
-  dom.table.body.innerHTML = pageData.map((c, i) => `
-    <tr class="${state.selectedIds.has(c.id) ? 'selected-row' : ''}">
-      <td><input type="checkbox" onchange="toggleSelect(${c.id}, this)" ${state.selectedIds.has(c.id) ? 'checked' : ''}></td>
-      <td>${start + i + 1}</td>
-      <td onclick="editInlineText(${c.id}, 'first', this)">${c.first}</td>
-      <td onclick="editInlineText(${c.id}, 'last', this)">${c.last}</td>
-      <td onclick="editInlineText(${c.id}, 'mobile', this)">${c.mobile}</td>
-      <td onclick="editInlineText(${c.id}, 'wa', this)">${c.wa}</td>
-      <td onclick="editInlineText(${c.id}, 'tech', this)">${c.tech}</td>
-      <td onclick="editRecruiterInline(${c.id}, this)">${c.recruiter}</td>
-      <td><select class="status-select ${c.status === 'Active' ? 'active' : 'inactive'}" onchange="updateStatus(${c.id}, this)"><option value="Active" ${c.status === 'Active' ? 'selected' : ''}>Active</option><option value="Inactive" ${c.status === 'Inactive' ? 'selected' : ''}>Inactive</option></select></td>
-      <td onclick="editInlineText(${c.id}, 'assigned', this)">${c.assigned}</td>
-      <td>${renderLink(c.gmail, 'gmail')}</td>
-      <td>${renderLink(c.linkedin)}</td>
-      <td>${renderLink(c.resume, 'resume')}</td>
-      <td>${renderLink(c.track)}</td>
-      <td onclick="editInlineText(${c.id}, 'comments', this)">${c.comments || '-'}</td>
-    </tr>
-  `).join('');
-  dom.table.pageInfo.innerText = `Page ${state.currentPage} of ${totalPages || 1}`;
-  renderPagination(totalPages); updateTableState();
-}
-
-function addBlankRow() {
-  const newId = Date.now();
-  const blankData = { id: newId, first: "", last: "", mobile: "", wa: "", tech: "-", recruiter: "-", status: "Active", linkedin: "", resume: "", track: "", assigned: new Date().toISOString().split('T')[0], gmail: "", comments: "", submissionLog: [], screeningLog: [], interviewLog: [] };
-  DB.candidates.push(blankData); saveData(); state.currentPage = Math.ceil(DB.candidates.length / state.rowsPerPage); updateTable();
-  setTimeout(() => { const rows = dom.table.body.rows; if (rows.length > 0) { const lastRow = rows[rows.length - 1]; const firstCell = lastRow.cells[2]; if (firstCell) editInlineText(newId, 'first', firstCell); lastRow.scrollIntoView({ behavior: 'smooth' }); } }, 100); showToast("New row added.");
-}
-function deleteSelectedRows() { if(state.selectedIds.size === 0) return; if(confirm(`Delete ${state.selectedIds.size} items?`)) { DB.candidates = DB.candidates.filter(c => !state.selectedIds.has(c.id)); state.selectedIds.clear(); saveData(); updateTable(); updateDashboard(); showToast("Items Deleted"); } }
-function toggleSelectAll(checkbox) { const isChecked = checkbox.checked; getFilteredData().forEach(c => { if(isChecked) state.selectedIds.add(c.id); else state.selectedIds.delete(c.id); }); updateTable(); }
-function toggleSelect(id, checkbox) { if(checkbox.checked) state.selectedIds.add(id); else state.selectedIds.delete(id); updateTableState(); }
-function updateStatus(id, el) { const idx = DB.candidates.findIndex(c => c.id === id); if(idx > -1) { DB.candidates[idx].status = el.value; saveData(); el.className = `status-select ${el.value === 'Active' ? 'active' : 'inactive'}`; showToast('Status Updated'); } }
-function updateTableState() { if (state.selectedIds.size > 0) { dom.table.btnDelete.style.display = 'inline-flex'; dom.table.selectedCount.innerText = state.selectedIds.size; } else { dom.table.btnDelete.style.display = 'none'; } const selectAll = document.getElementById('selectAll'); if(selectAll) selectAll.checked = state.selectedIds.size > 0 && getFilteredData().length > 0; }
-function renderLink(url, type = 'link') { if (!url || url === "") return '-'; let icon = 'fa-link'; if (type === 'resume') icon = 'fa-file-pdf'; if (type === 'gmail') icon = 'fa-envelope'; if (url.includes('linkedin')) icon = 'fa-linkedin'; return `<div class="url-wrapper"><a href="${url}" target="_blank" class="link-btn"><i class="fa-brands ${icon}"></i></a></div>`; }
-function renderPagination(total) { let html = ''; for(let i=1; i<=total; i++) html += `<button class="${i === state.currentPage ? 'active' : ''}" onclick="gotoPage(${i})">${i}</button>`; dom.table.pagination.innerHTML = html; }
-window.gotoPage = (p) => { state.currentPage = p; updateTable(); };
-
-/* =========================================
-   CANDIDATE HUB FUNCTIONS (ACTIVITY MODAL)
-   ========================================= */
-const hubColumns = [
-  { label: 'Sl No' }, { label: 'First Name' }, { label: 'Last Name' }, { label: 'Technology' },
-  { label: 'Submissions' }, { label: 'Screenings' }, { label: 'Interviews' }, { label: 'Last Interview Date' }
-];
-
-function renderHubHeaders() { dom.hubTable.head.innerHTML = `<tr>${hubColumns.map(c => `<th>${c.label}</th>`).join('')}</tr>`; }
-
-function updateHubTable() {
-  const filtered = DB.candidates.filter(c => c.first.toLowerCase().includes(state.hubFilter) || c.last.toLowerCase().includes(state.hubFilter));
-  const totalPages = Math.ceil(filtered.length / 10);
-  if (state.hubPage > totalPages) state.hubPage = totalPages || 1;
-  const start = (state.hubPage - 1) * 10;
-  const pageData = filtered.slice(start, start + 10);
-
-  dom.hubTable.body.innerHTML = pageData.map((c, i) => {
-      // Get counts from arrays
-      const subCount = c.submissionLog ? c.submissionLog.length : 0;
-      const scrCount = c.screeningLog ? c.screeningLog.length : 0;
-      const intCount = c.interviewLog ? c.interviewLog.length : 0;
-      // Get last interview date
-      let lastInt = '-';
-      if(c.interviewLog && c.interviewLog.length > 0) {
-          // Sort to find latest
-          const dates = [...c.interviewLog].sort().reverse();
-          lastInt = dates[0];
-      }
-
-      return `
-    <tr>
-      <td>${start + i + 1}</td>
-      <td onclick="editInlineText(${c.id}, 'first', this)">${c.first}</td>
-      <td onclick="editInlineText(${c.id}, 'last', this)">${c.last}</td>
-      <td onclick="editInlineText(${c.id}, 'tech', this)">${c.tech}</td>
-      <td onclick="openActivityModal(${c.id}, 'submissionLog', '${c.first}')" title="Click to view details">${subCount}</td>
-      <td onclick="openActivityModal(${c.id}, 'screeningLog', '${c.first}')" title="Click to view details">${scrCount}</td>
-      <td onclick="openActivityModal(${c.id}, 'interviewLog', '${c.first}')" title="Click to view details">${intCount}</td>
-      <td>${lastInt}</td>
-    </tr>
-  `}).join('');
-  dom.hubTable.pageInfo.innerText = `Page ${state.hubPage} of ${totalPages || 1}`;
-  renderHubPagination(totalPages);
-}
-
-function renderHubPagination(total) { let html = ''; for(let i=1; i<=total; i++) html += `<button class="${i === state.hubPage ? 'active' : ''}" onclick="gotoHubPage(${i})">${i}</button>`; dom.hubTable.pagination.innerHTML = html; }
-window.gotoHubPage = (p) => { state.hubPage = p; updateHubTable(); };
-
-/* --- MODAL LOGIC --- */
-window.openActivityModal = (id, type, name) => {
-    state.activeCandidateId = id;
-    state.activeActivityType = type;
+    // Filtering
+    document.getElementById('search-input').addEventListener('input', e => { state.filters.text = e.target.value.toLowerCase(); state.pagination.cand = 1; renderCandidateTable(); });
+    document.getElementById('hub-search-input').addEventListener('input', e => { state.hubFilters.text = e.target.value.toLowerCase(); state.pagination.hub = 1; renderHubTable(); });
     
-    // Set Title
-    let displayType = type.replace('Log', '');
-    displayType = displayType.charAt(0).toUpperCase() + displayType.slice(1) + 's';
-    dom.modal.title.innerText = `${name} - ${displayType} Activity`;
+    const recFilter = document.getElementById('filter-recruiter');
+    recFilter.addEventListener('change', e => { state.filters.recruiter = e.target.value; renderCandidateTable(); });
+    const techFilter = document.getElementById('filter-tech');
+    techFilter.addEventListener('change', e => { state.filters.tech = e.target.value; renderCandidateTable(); });
 
-    // Reset Input
+    // Status Filter Buttons
+    document.querySelectorAll('.btn-toggle').forEach(btn => {
+        btn.addEventListener('click', e => {
+            document.querySelectorAll('.btn-toggle').forEach(b => b.classList.remove('active'));
+            e.target.classList.add('active');
+            state.filters.status = e.target.dataset.status;
+            renderCandidateTable();
+        });
+    });
+
+    // Add Buttons
+    document.getElementById('btn-add-candidate').addEventListener('click', () => {
+        openAddModal();
+    });
+    
+    document.getElementById('btn-add-onboarding').addEventListener('click', () => {
+        db.collection('onboarding').add({
+            first: 'New', last: 'User', mobile: '', status: 'Onboarding',
+            assigned: new Date().toISOString().split('T')[0], comments: ''
+        });
+    });
+
+    // Delete Buttons
+    document.getElementById('btn-delete-selected').addEventListener('click', () => {
+        openDeleteModal('cand');
+    });
+    document.getElementById('btn-delete-onboarding').addEventListener('click', () => {
+        openDeleteModal('onb');
+    });
+}
+
+function renderDropdowns() {
+    const rSelect = document.getElementById('filter-recruiter');
+    if(rSelect) rSelect.innerHTML = `<option value="">All Recruiters</option>` + state.metadata.recruiters.map(r => `<option value="${r}">${r}</option>`).join('');
+    
+    const tSelect = document.getElementById('filter-tech');
+    if(tSelect) tSelect.innerHTML = `<option value="">All Tech</option>` + state.metadata.techs.map(t => `<option value="${t}">${t}</option>`).join('');
+}
+
+/* ========================================================
+   9. MODAL LOGIC (ACTIVITY)
+   ======================================================== */
+window.openModal = (id, type, name) => {
+    state.modal.id = id;
+    state.modal.type = type;
+    dom.modal.self.style.display = 'flex';
+    dom.modal.title.innerText = `${name} - ${type.replace('Log','').toUpperCase()}`;
     dom.modal.input.value = new Date().toISOString().split('T')[0];
-
-    // Show Modal
-    dom.modal.overlay.style.display = 'flex';
-    
-    renderModalStats();
+    renderModalContent();
 };
 
-window.closeActivityModal = () => { dom.modal.overlay.style.display = 'none'; };
+window.closeActivityModal = () => { dom.modal.self.style.display = 'none'; };
 
 window.saveActivityLog = () => {
     const date = dom.modal.input.value;
-    if(!date) return alert("Please select a date");
-
-    const idx = DB.candidates.findIndex(c => c.id === state.activeCandidateId);
-    if(idx > -1) {
-        if(!DB.candidates[idx][state.activeActivityType]) DB.candidates[idx][state.activeActivityType] = [];
-        DB.candidates[idx][state.activeActivityType].push(date);
-        
-        // Sort DESC
-        DB.candidates[idx][state.activeActivityType].sort().reverse();
-        
-        saveData();
-        renderModalStats();
-        updateHubTable(); // Refresh main table
-        showToast("Activity Logged");
-    }
+    if(!date) return;
+    const c = state.candidates.find(x => x.id === state.modal.id);
+    let logs = c[state.modal.type] || [];
+    logs.push(date);
+    logs.sort().reverse();
+    db.collection('candidates').doc(state.modal.id).update({ [state.modal.type]: logs });
+    renderModalContent();
+    showToast("Activity Logged");
 };
 
-function renderModalStats() {
-    const c = DB.candidates.find(x => x.id === state.activeCandidateId);
+function renderModalContent() {
+    const c = state.candidates.find(x => x.id === state.modal.id);
     if(!c) return;
+    const logs = c[state.modal.type] || [];
     
-    const logs = c[state.activeActivityType] || [];
-    
-    // Calculate Stats
     const now = new Date();
-    const currentMonth = now.getMonth();
-    const currentYear = now.getFullYear();
-    
-    // Simple "This Week" approximation (last 7 days)
-    const sevenDaysAgo = new Date();
-    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-    
-    let weekCount = 0;
-    let monthCount = 0;
-    
-    logs.forEach(dateStr => {
-        const d = new Date(dateStr);
-        if(d >= sevenDaysAgo && d <= now) weekCount++;
-        if(d.getMonth() === currentMonth && d.getFullYear() === currentYear) monthCount++;
+    let week = 0, month = 0;
+    logs.forEach(dStr => {
+        const d = new Date(dStr);
+        const diff = (now - d) / (1000 * 60 * 60 * 24);
+        if(diff <= 7) week++;
+        if(d.getMonth() === now.getMonth()) month++;
     });
 
-    dom.modal.week.innerText = weekCount;
-    dom.modal.month.innerText = monthCount;
+    dom.modal.week.innerText = week;
+    dom.modal.month.innerText = month;
     dom.modal.total.innerText = logs.length;
-
-    // Render List
-    dom.modal.list.innerHTML = logs.map(d => `<li><span class="date">${d}</span></li>`).join('');
+    dom.modal.list.innerHTML = logs.map(d => `<li>${d}</li>`).join('');
 }
 
+/* ========================================================
+   10. MODAL LOGIC (ADD CANDIDATE VALIDATION)
+   ======================================================== */
+window.openAddModal = () => {
+    const techSel = document.getElementById('add-tech');
+    const recSel = document.getElementById('add-recruiter');
+    
+    techSel.innerHTML = state.metadata.techs.map(t => `<option value="${t}">${t}</option>`).join('');
+    recSel.innerHTML = state.metadata.recruiters.map(r => `<option value="${r}">${r}</option>`).join('');
+    
+    ['add-first', 'add-last', 'add-mobile', 'add-wa'].forEach(id => document.getElementById(id).value = '');
+    document.getElementById('add-modal').style.display = 'flex';
+};
 
-/* =========================================
-   ONBOARDING TABLE FUNCTIONS
-   ========================================= */
-const onboardingColumns = [
-    { label: '<input type="checkbox" id="onbSelectAll" onclick="toggleOnboardingSelectAll(this)">' },
-    { label: 'Sl No' }, { label: 'First Name' }, { label: 'Last Name' }, { label: 'Mobile' }, { label: 'WhatsApp' }, { label: 'Technology' }, { label: 'Recruiter' }, { label: 'Status' }, { label: 'Assigned' }, { label: 'Comments' }
-];
+window.closeAddModal = () => {
+    document.getElementById('add-modal').style.display = 'none';
+};
 
-function renderOnboardingHeaders() { dom.onbTable.head.innerHTML = `<tr>${onboardingColumns.map(c => `<th>${c.label}</th>`).join('')}</tr>`; }
+window.validateAndSaveCandidate = () => {
+    const first = document.getElementById('add-first').value.trim();
+    const last = document.getElementById('add-last').value.trim();
+    const mobile = document.getElementById('add-mobile').value.trim();
+    const wa = document.getElementById('add-wa').value.trim();
+    const tech = document.getElementById('add-tech').value;
+    const recruiter = document.getElementById('add-recruiter').value;
 
-function updateOnboardingTable() {
-    const totalPages = Math.ceil(DB.onboarding.length / 10);
-    if (state.onboardingPage > totalPages) state.onboardingPage = totalPages || 1;
-    const start = (state.onboardingPage - 1) * 10;
-    const pageData = DB.onboarding.slice(start, start + 10);
+    const errors = [];
+    if (!first || !last) errors.push("First and Last name are required.");
+    const phoneRegex = /^[0-9]{10,}$/; 
+    if (!phoneRegex.test(mobile)) errors.push("Mobile number must be at least 10 digits.");
 
-    dom.onbTable.body.innerHTML = pageData.map((c, i) => `
-      <tr class="${state.onboardingSelectedIds.has(c.id) ? 'selected-row' : ''}">
-        <td><input type="checkbox" onchange="toggleOnboardingSelect(${c.id}, this)" ${state.onboardingSelectedIds.has(c.id) ? 'checked' : ''}></td>
-        <td>${start + i + 1}</td>
-        <td onclick="editOnboardingInline(${c.id}, 'first', this)">${c.first}</td>
-        <td onclick="editOnboardingInline(${c.id}, 'last', this)">${c.last}</td>
-        <td onclick="editOnboardingInline(${c.id}, 'mobile', this)">${c.mobile}</td>
-        <td onclick="editOnboardingInline(${c.id}, 'wa', this)">${c.wa}</td>
-        <td onclick="editOnboardingInline(${c.id}, 'tech', this)">${c.tech}</td>
-        <td onclick="editOnboardingRecruiterInline(${c.id}, this)">${c.recruiter}</td>
-        <td><select class="status-select active" onchange="updateOnboardingStatus(${c.id}, this)"><option value="Onboarding" ${c.status === 'Onboarding' ? 'selected' : ''}>Onboarding</option><option value="Completed" ${c.status === 'Completed' ? 'selected' : ''}>Completed</option></select></td>
-        <td onclick="editOnboardingInline(${c.id}, 'assigned', this)">${c.assigned}</td>
-        <td onclick="editOnboardingInline(${c.id}, 'comments', this)">${c.comments || '-'}</td>
-      </tr>
-    `).join('');
-    dom.onbTable.pageInfo.innerText = `Page ${state.onboardingPage} of ${totalPages || 1}`; renderOnboardingPagination(totalPages); updateOnboardingTableState();
+    if (errors.length > 0) {
+        showToast("?? " + errors[0]);
+        return;
+    }
+
+    toggleLoader(true);
+    db.collection('candidates').add({
+        first, last, mobile, wa, tech, recruiter,
+        status: 'Active',
+        assigned: new Date().toISOString().split('T')[0],
+        comments: '',
+        submissionLog: [], screeningLog: [], interviewLog: []
+    }).then(() => {
+        toggleLoader(false);
+        showToast("Candidate Added Successfully");
+        closeAddModal();
+    }).catch(err => {
+        toggleLoader(false);
+        console.error(err);
+        showToast("Error adding candidate");
+    });
+};
+
+/* ========================================================
+   11. DELETE MODAL LOGIC
+   ======================================================== */
+window.openDeleteModal = (type) => {
+    const count = state.selection[type].size;
+    if (count === 0) return;
+
+    state.pendingDelete.type = type;
+    document.getElementById('del-count').innerText = count;
+    document.getElementById('delete-modal').style.display = 'flex';
+};
+
+window.closeDeleteModal = () => {
+    document.getElementById('delete-modal').style.display = 'none';
+    state.pendingDelete.type = null;
+};
+
+window.executeDelete = () => {
+    const type = state.pendingDelete.type;
+    if (!type) return;
+
+    const collection = type === 'cand' ? 'candidates' : 'onboarding';
+    
+    state.selection[type].forEach(id => {
+        db.collection(collection).doc(id).delete().catch(err => console.error(err));
+    });
+
+    state.selection[type].clear();
+    
+    if (type === 'cand') {
+        renderCandidateTable();
+        document.getElementById('btn-delete-selected').style.display = 'none';
+        document.getElementById('selected-count').innerText = '0';
+    } else {
+        renderOnboardingTable();
+        document.getElementById('btn-delete-onboarding').style.display = 'none';
+        document.getElementById('onboarding-selected-count').innerText = '0';
+    }
+
+    showToast("Items Deleted Successfully");
+    closeDeleteModal();
+};
+
+/* ========================================================
+   12. EXPORT DATA
+   ======================================================== */
+window.exportData = () => {
+    if (state.candidates.length === 0) {
+        showToast("No data to export");
+        return;
+    }
+
+    const headers = ["ID", "First Name", "Last Name", "Mobile", "Tech", "Recruiter", "Status", "Assigned Date", "Comments"];
+    const csvRows = [];
+    csvRows.push(headers.join(","));
+
+    state.candidates.forEach(c => {
+        const row = [
+            c.id, `"${c.first}"`, `"${c.last}"`, `"${c.mobile}"`, `"${c.tech}"`,
+            `"${c.recruiter}"`, `"${c.status}"`, c.assigned,
+            `"${(c.comments || '').replace(/"/g, '""')}"`
+        ];
+        csvRows.push(row.join(","));
+    });
+
+    const csvString = csvRows.join("\n");
+    const blob = new Blob([csvString], { type: "text/csv" });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.setAttribute("hidden", "");
+    a.setAttribute("href", url);
+    a.setAttribute("download", "nileprise_candidates.csv");
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    showToast("Data Exported Successfully");
+};
+
+/* ========================================================
+   13. CHARTS & TOAST
+   ======================================================== */
+function updateDashboardStats() {
+    document.getElementById('stat-total').innerText = state.candidates.length;
+    document.getElementById('stat-tech').innerText = new Set(state.candidates.map(c=>c.tech)).size;
+    document.getElementById('stat-rec').innerText = state.metadata.recruiters.length;
+    
+    renderChart('chart-tech', getChartData('tech'));
+    renderChart('chart-recruiter', getChartData('recruiter'));
 }
 
-function addBlankOnboardingRow() { const newId = Date.now(); DB.onboarding.push({ id: newId, first: "", last: "", mobile: "", wa: "", tech: "-", recruiter: "-", status: "Onboarding", assigned: new Date().toISOString().split('T')[0], comments: "" }); saveData(); state.onboardingPage = Math.ceil(DB.onboarding.length / 10); updateOnboardingTable(); showToast("Onboarding Row Added"); }
-function deleteSelectedOnboardingRows() { if(state.onboardingSelectedIds.size === 0) return; if(confirm(`Delete ${state.onboardingSelectedIds.size} records?`)) { DB.onboarding = DB.onboarding.filter(c => !state.onboardingSelectedIds.has(c.id)); state.onboardingSelectedIds.clear(); saveData(); updateOnboardingTable(); showToast("Records Deleted"); } }
-function toggleOnboardingSelectAll(checkbox) { const isChecked = checkbox.checked; DB.onboarding.forEach(c => { if(isChecked) state.onboardingSelectedIds.add(c.id); else state.onboardingSelectedIds.delete(c.id); }); updateOnboardingTable(); }
-function toggleOnboardingSelect(id, checkbox) { if(checkbox.checked) state.onboardingSelectedIds.add(id); else state.onboardingSelectedIds.delete(id); updateOnboardingTableState(); }
-function updateOnboardingTableState() { if(state.onboardingSelectedIds.size > 0) { dom.onbTable.btnDelete.style.display = 'inline-flex'; dom.onbTable.selectedCount.innerText = state.onboardingSelectedIds.size; } else { dom.onbTable.btnDelete.style.display = 'none'; } }
-function renderOnboardingPagination(total) { let html = ''; for(let i=1; i<=total; i++) html += `<button class="${i === state.onboardingPage ? 'active' : ''}" onclick="gotoOnboardingPage(${i})">${i}</button>`; dom.onbTable.pagination.innerHTML = html; }
-window.gotoOnboardingPage = (p) => { state.onboardingPage = p; updateOnboardingTable(); };
+function getChartData(key) {
+    const counts = {};
+    state.candidates.forEach(c => counts[c[key]] = (counts[c[key]] || 0) + 1);
+    return { labels: Object.keys(counts), data: Object.values(counts) };
+}
 
-// Onboarding Inline Edit
-window.editOnboardingInline = (id, field, el) => { if (el.querySelector('input')) return; const currentVal = el.innerText === '-' ? '' : el.innerText; el.innerHTML = ''; const input = document.createElement('input'); input.className = 'inline-input'; input.value = currentVal; if(field === 'assigned') input.type = 'date'; const save = () => { const idx = DB.onboarding.findIndex(c => c.id === id); if(idx > -1) { DB.onboarding[idx][field] = input.value; saveData(); showToast('Updated'); } updateOnboardingTable(); }; input.addEventListener('blur', save); input.addEventListener('keydown', (e) => { if(e.key === 'Enter') save(); }); el.appendChild(input); input.focus(); };
-window.editOnboardingRecruiterInline = (id, el) => { if (el.querySelector('select')) return; const currentVal = el.innerText; el.innerHTML = ''; const select = document.createElement('select'); select.className = 'inline-select'; DB.recruiters.forEach(r => { const option = document.createElement('option'); option.value = r; option.text = r; if(r === currentVal) option.selected = true; select.appendChild(option); }); const save = () => { const idx = DB.onboarding.findIndex(c => c.id === id); if(idx > -1) { DB.onboarding[idx].recruiter = select.value; saveData(); showToast('Updated'); } updateOnboardingTable(); }; select.addEventListener('blur', save); select.addEventListener('change', save); el.appendChild(select); select.focus(); };
-window.updateOnboardingStatus = (id, el) => { const idx = DB.onboarding.findIndex(c => c.id === id); if(idx > -1) { DB.onboarding[idx].status = el.value; saveData(); showToast('Status Updated'); } };
+let chartInstances = {};
+function renderChart(id, data) {
+    const ctx = document.getElementById(id).getContext('2d');
+    if(chartInstances[id]) chartInstances[id].destroy();
+    chartInstances[id] = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            labels: data.labels,
+            datasets: [{
+                data: data.data,
+                backgroundColor: ['#06b6d4', '#f59e0b', '#8b5cf6', '#22c55e', '#ef4444', '#ec4899', '#6366f1'],
+                borderWidth: 0
+            }]
+        },
+        options: { responsive: true, plugins: { legend: { position: 'right', labels: { color: '#94a3b8' } } } }
+    });
+}
 
-/* --- GENERAL UTILS --- */
-window.editInlineText = (id, field, el) => { if (el.querySelector('input')) return; const currentVal = el.innerText === '-' ? '' : el.innerText; el.innerHTML = ''; const input = document.createElement('input'); input.className = 'inline-input'; input.value = currentVal; if(field === 'assigned') input.type = 'date'; const save = () => { const newVal = input.value; const idx = DB.candidates.findIndex(c => c.id === id); if(idx > -1 && DB.candidates[idx][field] !== newVal) { DB.candidates[idx][field] = newVal; saveData(); showToast('Updated'); } updateTable(); }; input.addEventListener('blur', save); input.addEventListener('keydown', (e) => { if(e.key === 'Enter') save(); }); el.appendChild(input); input.focus(); };
-window.editRecruiterInline = (id, el) => { if (el.querySelector('select')) return; const currentVal = el.innerText; el.innerHTML = ''; const select = document.createElement('select'); select.className = 'inline-select'; DB.recruiters.forEach(r => { const option = document.createElement('option'); option.value = r; option.text = r; if(r === currentVal) option.selected = true; select.appendChild(option); }); const save = () => { const newVal = select.value; const idx = DB.candidates.findIndex(c => c.id === id); if(idx > -1) { DB.candidates[idx].recruiter = newVal; saveData(); showToast('Updated'); } updateTable(); }; select.addEventListener('blur', save); select.addEventListener('change', save); el.appendChild(select); select.focus(); };
+function showToast(msg) {
+    const t = document.getElementById('toast');
+    document.getElementById('toast-msg').innerText = msg;
+    t.classList.add('show');
+    setTimeout(() => t.classList.remove('show'), 2000);
+}
 
-/* SAVE + UTILS */
-function saveData() { localStorage.setItem('np_candidates', JSON.stringify(DB.candidates)); localStorage.setItem('np_onboarding', JSON.stringify(DB.onboarding)); const now = new Date().toLocaleString(); localStorage.setItem('np_last_updated', now); if(dom.headerUpdated) dom.headerUpdated.innerText = now; }
-window.exportData = () => { const rows = [["ID", "First Name", "Last Name", "Mobile", "Technology", "Recruiter", "Status"]]; DB.candidates.forEach(c => rows.push([c.id, c.first, c.last, c.mobile, c.tech, c.recruiter, c.status])); const csvContent = "data:text/csv;charset=utf-8," + rows.map(e => e.join(",")).join("\n"); const encodedUri = encodeURI(csvContent); const link = document.createElement("a"); link.setAttribute("href", encodedUri); link.setAttribute("download", "candidates_backup.csv"); document.body.appendChild(link); link.click(); document.body.removeChild(link); showToast("Exported successfully"); };
-window.resetSystem = () => { if(confirm("CRITICAL WARNING: This will delete ALL data. Continue?")) { localStorage.clear(); location.reload(); } };
-function showToast(msg) { const t = document.getElementById('toast'); document.getElementById('toast-msg').innerText = msg; t.classList.add('show'); setTimeout(() => t.classList.remove('show'), 2000); }
-
-/* CHARTS */
-let charts = {};
-function updateDashboard() { dom.stats.total.innerText = DB.candidates.length; dom.stats.tech.innerText = [...new Set(DB.candidates.map(c => c.tech))].length; dom.stats.rec.innerText = DB.recruiters.length; if (document.getElementById('view-dashboard').classList.contains('active')) initCharts(); }
-function initCharts() { const techData = {}, recData = {}; DB.candidates.forEach(c => { techData[c.tech] = (techData[c.tech] || 0) + 1; recData[c.recruiter] = (recData[c.recruiter] || 0) + 1; }); renderChart('chart-tech', Object.keys(techData), Object.values(techData), ['#06b6d4', '#22d3ee', '#67e8f9']); renderChart('chart-recruiter', Object.keys(recData), Object.values(recData), ['#f59e0b', '#fbbf24', '#fcd34d']); }
-function renderChart(id, lbls, data, clrs) { if (charts[id]) charts[id].destroy(); charts[id] = new Chart(document.getElementById(id).getContext('2d'), { type: 'doughnut', data: { labels: lbls, datasets: [{ data: data, backgroundColor: clrs, borderWidth: 0 }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'right', labels: { color: '#94a3b8' } } } } }); }
+// Start
 init();
