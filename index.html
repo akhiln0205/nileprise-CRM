@@ -87,14 +87,9 @@
           We've sent a verification link to <br>
           <span id="verify-email-display" class="text-cyan" style="font-weight: bold;"></span>
         </p>
-        <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 30px;">
-          Please check your inbox (and spam folder) and click the link to activate your account.
-        </p>
-        
         <button class="btn btn-primary btn-block" onclick="checkVerificationStatus()">
           <i class="fa-solid fa-rotate"></i> I Have Verified
         </button>
-        
         <div style="margin-top: 20px; display: flex; justify-content: space-between; font-size: 0.85rem;">
           <span class="link-text" onclick="resendVerificationEmail()">Resend Email</span>
           <span class="link-text text-danger" onclick="firebase.auth().signOut()">Logout</span>
@@ -123,15 +118,14 @@
           <div class="header-right">
             <div class="header-widget"><span class="label">Live Sync:</span><span id="header-updated" class="value" style="color:#22c55e">Active</span></div>
             <div class="v-divider"></div>
-            <button id="theme-toggle" class="btn-icon"><i class="fa-solid fa-sun"></i></button>
+            
             <div class="admin-pill">
-              <img id="user-avatar" src="" class="avatar-img-small" style="display:none;">
-              <div id="user-avatar-placeholder" class="avatar"><i class="fa-solid fa-user"></i></div>
-              <div class="admin-text">
-                <span id="display-username">Loading...</span>
-                <small id="display-role" class="online-status" style="color:var(--accent); text-transform: uppercase; font-size:0.7rem; font-weight:bold;">Role</small>
-              </div>
-              <div class="v-divider-small"></div>
+              <span id="display-username" style="display:none;"></span>
+              <img id="user-avatar" src="" style="display:none;">
+              <small id="display-role" style="display:none;"></small>
+              <div id="user-avatar-placeholder" style="display:none;"></div>
+              
+              <button id="theme-toggle" class="btn-icon" style="margin-right: 10px;"><i class="fa-solid fa-sun"></i></button>
               <button id="btn-logout" class="logout-icon"><i class="fa-solid fa-power-off"></i></button>
             </div>
           </div>
@@ -159,7 +153,9 @@
                 <button class="btn-toggle" data-status="Active">Active</button>
                 <button class="btn-toggle" data-status="Inactive">Inactive</button>
               </div>
+              
               <button id="btn-delete-selected" class="btn btn-danger" style="display: none;"><i class="fa-solid fa-trash-can"></i> Delete (<span id="selected-count">0</span>)</button>
+              
             </div>
             <div class="filters-group">
               <div class="search-box"><i class="fa-solid fa-search"></i><input type="text" id="search-input" placeholder="Search..."></div>
@@ -170,7 +166,7 @@
           </div>
           <div class="table-container glass-panel">
             <div class="table-wrapper"><table class="modern-table"><thead id="table-head"></thead><tbody id="table-body"></tbody></table></div>
-            <div class="pagination-bar"><span id="page-info">Page 1 of 1</span><div class="pagination-controls" id="pagination-controls"></div><select id="rows-per-page"><option value="5">5 rows</option><option value="10" selected>10 rows</option><option value="20">20 rows</option></select></div>
+            <div class="pagination-bar"><span id="page-info">Page 1 of 1</span><div class="pagination-controls" id="pagination-controls"></div></div>
           </div>
         </div>
 
@@ -218,6 +214,7 @@
             <div class="profile-body">
                <div class="form-grid">
                   <div class="form-group"><label>Email</label><input type="email" id="prof-email" readonly></div>
+                  <div class="form-group"><label>Username</label><input type="text" id="prof-username" readonly></div>
                   <div class="form-group"><label>Last Login</label><input type="text" id="prof-last-login" readonly></div>
                </div>
             </div>
@@ -232,8 +229,13 @@
                 <div class="setting-item"><div class="setting-info"><h4>Dark Mode</h4><small>Toggle theme</small></div><label class="switch"><input type="checkbox" id="setting-theme-toggle" checked><span class="slider round"></span></label></div>
               </div>
               <div class="glass-panel setting-card">
-                <h3><i class="fa-solid fa-database"></i> Data</h3>
-                <div class="setting-actions"><div class="setting-info-block"><h4>Export Data</h4><small>Download CSV</small></div><button class="btn btn-primary" onclick="exportData()"><i class="fa-solid fa-download"></i> Export</button></div>
+                <h3><i class="fa-solid fa-database"></i> Data Management</h3>
+                <div class="setting-actions" style="display:flex; flex-direction:column; gap:10px;">
+                    <button class="btn btn-primary btn-block" onclick="exportData()"><i class="fa-solid fa-download"></i> Export CSV</button>
+                    <button id="btn-seed-data" class="btn btn-block" style="border:1px solid var(--primary); color:var(--primary); background:transparent;">
+                        <i class="fa-solid fa-database"></i> Generate Demo Data (25)
+                    </button>
+                </div>
               </div>
             </div>
         </div>
@@ -256,7 +258,6 @@
                 <button class="btn btn-primary" onclick="saveActivityLog()">Add Log</button>
             </div>
             <div class="activity-history-container">
-                <h4 style="margin: 15px 0 10px; color:var(--text-muted); font-size:0.8rem;">History Log</h4>
                 <ul id="act-history-list" class="activity-history-list"></ul>
             </div>
         </div>
@@ -272,7 +273,6 @@
         <h3 style="margin-bottom: 10px; font-size: 1.2rem;">Confirm Deletion</h3>
         <p style="color: var(--text-muted); margin-bottom: 30px;">
           Are you sure you want to permanently delete <span id="del-count" style="color: var(--text-main); font-weight: bold;">0</span> items? 
-          This action cannot be undone.
         </p>
         <div style="display: flex; gap: 10px; justify-content: center;">
           <button class="btn" style="background: rgba(255,255,255,0.1); color: var(--text-main);" onclick="closeDeleteModal()">Cancel</button>
