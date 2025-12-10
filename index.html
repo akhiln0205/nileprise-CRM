@@ -5,9 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>NILEPRISE CRM</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <link rel="stylesheet" href="style.css?v=5">
+  <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
@@ -17,7 +17,10 @@
     <div class="blob blob-3"></div>
   </div>
 
-  <div id="toast" class="toast"><i class="fa-solid fa-circle-info"></i><span id="toast-msg">Notification</span></div>
+  <div id="toast" class="toast">
+    <i class="fa-solid fa-circle-info"></i>
+    <span id="toast-msg">Notification</span>
+  </div>
 
   <div id="app" class="app-container">
 
@@ -45,7 +48,7 @@
 
         <div id="form-signup" class="auth-form">
             <h3 class="form-title">Activate Account</h3>
-            <p style="font-size:0.8rem; color:var(--text-muted); margin-bottom:15px;">Only authorized Nileprise staff can register.</p>
+            <p>Only authorized Nileprise staff can register.</p>
             <div class="input-group">
                 <i class="fa-solid fa-user"></i>
                 <input type="text" id="reg-name" placeholder="Full Name">
@@ -74,7 +77,33 @@
       </div>
     </section>
 
+    <section id="verify-screen" class="screen">
+      <div class="glass-panel auth-box">
+        <div class="icon-box gold" style="margin: 0 auto 20px; width: 60px; height: 60px; font-size: 1.5rem; border-radius: 50%;">
+          <i class="fa-solid fa-envelope-open-text"></i>
+        </div>
+        <h3 class="form-title">Verify Your Email</h3>
+        <p class="subtitle" style="line-height: 1.6; margin-bottom: 25px; opacity: 0.8; font-size: 0.8rem; background: none; -webkit-text-fill-color: var(--text-main); filter: none;">
+          We've sent a verification link to <br>
+          <span id="verify-email-display" class="text-cyan" style="font-weight: bold;"></span>
+        </p>
+        <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 30px;">
+          Please check your inbox (and spam folder) and click the link to activate your account.
+        </p>
+        
+        <button class="btn btn-primary btn-block" onclick="checkVerificationStatus()">
+          <i class="fa-solid fa-rotate"></i> I Have Verified
+        </button>
+        
+        <div style="margin-top: 20px; display: flex; justify-content: space-between; font-size: 0.85rem;">
+          <span class="link-text" onclick="resendVerificationEmail()">Resend Email</span>
+          <span class="link-text text-danger" onclick="firebase.auth().signOut()">Logout</span>
+        </div>
+      </div>
+    </section>
+
     <section id="dashboard-screen" class="screen">
+      
       <aside class="sidebar glass-panel">
         <div class="brand-small"><span class="text-cyan">NILE</span><span class="text-white">PRISE</span> <span class="text-gold">CRM</span></div>
         <nav class="nav-menu">
@@ -88,6 +117,7 @@
       </aside>
 
       <main class="main-content">
+        
         <header class="top-bar">
           <h2 id="page-title">Dashboard</h2>
           <div class="header-right">
@@ -122,7 +152,8 @@
         <div id="view-candidates" class="content-view">
           <div class="toolbar glass-panel">
             <div class="left-actions">
-              <button id="btn-add-candidate" class="btn btn-primary"><i class="fa-solid fa-plus"></i> Insert</button>
+              <button id="btn-add-candidate" class="btn btn-primary"><i class="fa-solid fa-plus"></i> Insert Row</button>
+              
               <div class="status-toggles">
                 <button class="btn-toggle active" data-status="">All</button>
                 <button class="btn-toggle" data-status="Active">Active</button>
@@ -159,7 +190,7 @@
         <div id="view-onboarding" class="content-view">
           <div class="toolbar glass-panel">
             <div class="left-actions">
-               <button id="btn-add-onboarding" class="btn btn-primary"><i class="fa-solid fa-user-plus"></i> Add Onboarding</button>
+               <button id="btn-add-onboarding" class="btn btn-primary"><i class="fa-solid fa-user-plus"></i> Insert Row</button>
                <button id="btn-delete-onboarding" class="btn btn-danger" style="display: none;"><i class="fa-solid fa-trash-can"></i> Delete (<span id="onboarding-selected-count">0</span>)</button>
             </div>
             <div class="filters-group" style="justify-content: flex-end;">
@@ -232,29 +263,6 @@
     </div>
   </div>
 
-  <div id="add-modal" class="modal-overlay">
-    <div class="glass-panel modal-box">
-      <div class="modal-header">
-        <h3><i class="fa-solid fa-user-plus"></i> Add New Candidate</h3>
-        <button class="btn-icon" onclick="closeAddModal()"><i class="fa-solid fa-xmark"></i></button>
-      </div>
-      <div class="modal-body">
-        <div class="form-grid">
-          <div class="form-group"><label>First Name <span class="text-danger">*</span></label><input type="text" id="add-first" placeholder="e.g. John"></div>
-          <div class="form-group"><label>Last Name <span class="text-danger">*</span></label><input type="text" id="add-last" placeholder="e.g. Doe"></div>
-          <div class="form-group"><label>Mobile <span class="text-danger">*</span></label><input type="tel" id="add-mobile" placeholder="10-digit number"></div>
-          <div class="form-group"><label>WhatsApp</label><input type="tel" id="add-wa" placeholder="Optional"></div>
-          <div class="form-group"><label>Technology</label><select id="add-tech" class="modern-select" style="width:100%;"></select></div>
-          <div class="form-group"><label>Recruiter</label><select id="add-recruiter" class="modern-select" style="width:100%;"></select></div>
-        </div>
-        <div style="margin-top: 20px; display: flex; justify-content: flex-end; gap: 10px;">
-          <button class="btn" onclick="closeAddModal()" style="background:transparent; border:1px solid var(--glass-border); color:var(--text-muted);">Cancel</button>
-          <button class="btn btn-primary" onclick="validateAndSaveCandidate()">Save Candidate</button>
-        </div>
-      </div>
-    </div>
-  </div>
-
   <div id="delete-modal" class="modal-overlay">
     <div class="glass-panel modal-box" style="max-width: 400px; text-align: center;">
       <div class="modal-body">
@@ -277,6 +285,7 @@
   <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
-  <script src="script.js?v=5"></script>
+  
+  <script src="script.js"></script>
 </body>
 </html>
