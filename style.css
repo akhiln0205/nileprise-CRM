@@ -1,4 +1,3 @@
-/* --- VARIABLES --- */
 :root {
   --bg-dark: #0f172a; --bg-darker: #020617;
   --primary: #06b6d4; --primary-glow: rgba(6, 182, 212, 0.4);
@@ -64,15 +63,47 @@ body { margin: 0; font-family: 'Inter', sans-serif; background-color: var(--bg-a
 .switch-text { margin-top: 20px; font-size: 0.9rem; color: var(--text-muted); }
 .switch-text span { color: var(--primary); font-weight: 600; cursor: pointer; }
 
+/* === GLOSSY WHITE SUBTITLE UPDATE === */
+.subtitle {
+    margin-bottom: 30px;
+    font-size: 0.9rem;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    font-weight: 800;
+    /* Glossy Metallic Gradient */
+    background: linear-gradient(to bottom, #ffffff 30%, #94a3b8 50%, #ffffff 70%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent; 
+    -webkit-text-fill-color: transparent;
+    /* Glow */
+    filter: drop-shadow(0 0 8px rgba(255, 255, 255, 0.6));
+    opacity: 1;
+}
+
+/* === BRIGHT YELLOW WARNING UPDATE === */
+#form-signup p:nth-of-type(1) {
+    color: var(--accent) !important;
+    font-weight: 600;
+    font-size: 0.9rem !important;
+    text-shadow: 0 0 5px rgba(0,0,0,0.8);
+    background: rgba(0,0,0,0.3);
+    padding: 8px;
+    border-radius: 6px;
+    border: 1px solid rgba(245, 158, 11, 0.3);
+    margin-bottom: 15px;
+}
+
 /* LAYOUT */
 .app-container { position: relative; z-index: 10; height: 100vh; width: 100vw; }
 .screen { display: none; height: 100%; width: 100%; }
 .screen.active { display: flex; }
 
-#auth-screen { justify-content: center; align-items: center; background: linear-gradient(rgba(2, 6, 23, 0.1), rgba(2, 6, 23, 0.1)), url('https://nileprise.com/wp-content/uploads/2022/01/Layer-1.jpg'); background-size: cover; background-position: center; background-repeat: no-repeat; }
-.auth-box { width: 400px; padding: 40px; text-align: center; background: rgba(15, 23, 42, 0.1); backdrop-filter: blur(20px); }
+#auth-screen, #verify-screen { justify-content: center; align-items: center; background: linear-gradient(rgba(2, 6, 23, 0.1), rgba(2, 6, 23, 0.1)), url('https://nileprise.com/wp-content/uploads/2022/01/Layer-1.jpg'); background-size: cover; background-position: center; background-repeat: no-repeat; }
+#verify-screen { background: linear-gradient(rgba(2, 6, 23, 0.8), rgba(2, 6, 23, 0.9)), url('https://nileprise.com/wp-content/uploads/2022/01/Layer-1.jpg'); background-size: cover; background-position: center; }
+
+.auth-box { width: 400px; padding: 40px; text-align: center; background: rgba(15, 23, 42, 0.6); backdrop-filter: blur(20px); }
 .brand-large { font-size: 2.5rem; font-weight: 800; margin-bottom: 5px; }
-.subtitle { color: var(--text-muted); margin-bottom: 30px; font-size: 0.8rem; letter-spacing: 1px; text-transform: uppercase; }
 
 /* DASHBOARD LAYOUT */
 .sidebar { width: 240px; display: flex; flex-direction: column; padding: 20px; margin: 10px; margin-right: 0; }
@@ -150,10 +181,16 @@ th:nth-child(15), td:nth-child(15) { width: var(--w-comments); }
 
 tr:hover td { background: var(--table-row-hover); }
 .selected-row td { background: rgba(6, 182, 212, 0.15) !important; }
-.status-select { padding: 4px 8px; border-radius: 6px; border: none; font-size: 0.8rem; font-weight: 600; cursor: pointer; text-align: center; width: 100%; }
+.status-select { padding: 4px 8px; border-radius: 6px; border: none; font-size: 0.8rem; font-weight: 600; cursor: pointer; text-align: center; width: 100%; height: 30px; margin: 0; }
 .status-select.active { background: rgba(34, 197, 94, 0.2); color: #22c55e; border: 1px solid #22c55e; }
 .status-select.inactive { background: rgba(239, 68, 68, 0.2); color: #ef4444; border: 1px solid #ef4444; }
-.inline-select, .inline-input { width: 100%; background: var(--bg-app); color: var(--text-main); border: 1px solid var(--primary); border-radius: 4px; padding: 4px; text-align: center; }
+
+/* === TABLE EDITING FIXES === */
+.modern-table td { height: 50px; vertical-align: middle; padding: 0 10px; }
+.inline-input-active { width: 100%; height: 100%; background: var(--bg-darker); border: 2px solid var(--primary); color: var(--text-main); padding: 0 8px; border-radius: 4px; font-size: 0.9rem; box-shadow: 0 0 10px rgba(0,0,0,0.5); }
+.editing-cell { padding: 0 !important; overflow: visible !important; }
+.modern-table td:empty::before { content: "Tap to edit"; color: var(--text-muted); font-style: italic; font-size: 0.7rem; opacity: 0.5; }
+
 .pagination-bar { padding: 15px; background: rgba(0,0,0,0.1); border-top: 1px solid var(--glass-border); display: flex; justify-content: space-between; align-items: center; }
 .pagination-controls button { width: 30px; height: 30px; border-radius: 6px; border: 1px solid var(--glass-border); background: transparent; color: var(--text-main); margin: 0 2px; cursor: pointer; }
 .pagination-controls button.active { background: var(--primary); border-color: var(--primary); color: #fff; font-weight: bold; }
@@ -181,7 +218,9 @@ tr:hover td { background: var(--table-row-hover); }
 input:checked + .slider { background-color: var(--primary); }
 input:checked + .slider:before { transform: translateX(20px); }
 
-/* --- MODAL STYLES --- */
+input[type="date"] { color-scheme: dark; }
+
+/* MODAL STYLES */
 .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 2000; align-items: center; justify-content: center; backdrop-filter: blur(5px); }
 .modal-box { width: 500px; max-width: 95vw; background: var(--bg-dark); border: 1px solid var(--glass-border); display: flex; flex-direction: column; overflow: hidden; animation: zoomIn 0.2s; }
 .modal-header { padding: 15px 20px; border-bottom: 1px solid var(--glass-border); display: flex; justify-content: space-between; align-items: center; background: rgba(0,0,0,0.2); }
@@ -199,6 +238,4 @@ input:checked + .slider:before { transform: translateX(20px); }
 .activity-history-list { list-style: none; padding: 0; margin: 0; }
 .activity-history-list li { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid var(--glass-border); font-size: 0.9rem; }
 .activity-history-list li:last-child { border-bottom: none; }
-
-/* Delete Modal Specifics */
 #delete-modal .modal-box { border: 1px solid rgba(239, 68, 68, 0.3); box-shadow: 0 0 30px rgba(239, 68, 68, 0.1); }
