@@ -61,7 +61,6 @@ const dom = {
         onboarding: document.getElementById('view-onboarding'),
         settings: document.getElementById('view-settings')
     },
-    // PROFILE ELEMENTS (Mapped correctly to IDs)
     profile: {
         img: document.getElementById('user-avatar'),
         profileUser: document.getElementById('display-username'),
@@ -72,7 +71,6 @@ const dom = {
         profRole: document.getElementById('prof-role-display')
     },
     headerUpdated: document.getElementById('header-updated'),
-    
     tables: {
         cand: { body: document.getElementById('table-body'), head: document.getElementById('table-head'), page: document.getElementById('page-info'), ctrls: document.getElementById('pagination-controls') },
         hub: { body: document.getElementById('hub-table-body'), head: document.getElementById('hub-table-head'), page: document.getElementById('hub-page-info'), ctrls: document.getElementById('hub-pagination-controls') },
@@ -96,7 +94,6 @@ window.seedData = () => {
     const batch = db.batch();
     const techList = state.metadata.techs;
     const recList = state.metadata.recruiters;
-    
     for (let i = 1; i <= 25; i++) {
         const newRef = db.collection('candidates').doc();
         const data = {
@@ -112,7 +109,6 @@ window.seedData = () => {
         };
         batch.set(newRef, data);
     }
-    
     batch.commit()
         .then(() => { state.pagination.cand = 1; renderCandidateTable(); showToast("25 Demo Candidates Inserted"); })
         .catch(err => showToast("Error seeding data: " + err.message));
@@ -128,7 +124,7 @@ function init() {
         auth.onAuthStateChanged(user => {
             if (user) {
                 const email = user.email.toLowerCase();
-                if (!ALLOWED_USERS[email]) { auth.signOut(); showToast("Access Denied."); switchScreen('auth'); return; }
+                if (!ALLOWED_USERS[email]) { auth.signOut(); showToast("Access Denied: Not on allowlist."); switchScreen('auth'); return; }
                 if (!user.emailVerified) { document.getElementById('verify-email-display').innerText = email; switchScreen('verify'); return; }
                 state.user = user;
                 state.userRole = ALLOWED_USERS[email].role;
@@ -150,12 +146,8 @@ function updateUserProfile(user, userData) {
     dom.profile.profRole.innerText = userData ? userData.role : 'Staff';
     dom.profile.profileEmail.value = user.email;
     dom.profile.profileUsername.value = displayName.replace(/\s+/g, '').toLowerCase(); 
-
-    if(user.photoURL) {
-        dom.profile.img.src = user.photoURL; dom.profile.img.style.display = 'block'; document.getElementById('user-avatar-placeholder').style.display = 'none';
-    } else {
-        dom.profile.img.style.display = 'none'; document.getElementById('user-avatar-placeholder').style.display = 'flex';
-    }
+    if(user.photoURL) { dom.profile.img.src = user.photoURL; dom.profile.img.style.display = 'block'; document.getElementById('user-avatar-placeholder').style.display = 'none'; }
+    else { dom.profile.img.style.display = 'none'; document.getElementById('user-avatar-placeholder').style.display = 'flex'; }
 }
 
 function switchScreen(screenName) {
@@ -164,21 +156,17 @@ function switchScreen(screenName) {
 }
 window.switchAuth = (target) => { document.querySelectorAll('.auth-form').forEach(f => f.classList.remove('active')); document.getElementById(`form-${target}`).classList.add('active'); };
 
-/* --- LOGIN PROTECTION (Fixes Quota Issue) --- */
 window.handleLogin = () => {
     const btn = document.getElementById('btn-login-action');
     const email = document.getElementById('login-email').value.trim().toLowerCase();
     const pass = document.getElementById('login-pass').value;
     if(!email || !pass) return showToast("Please fill all fields");
-    
-    // Disable button to prevent double-clicks (Quota Protection)
-    btn.disabled = true;
-    btn.innerText = "Verifying...";
+    if (btn) { btn.disabled = true; btn.innerText = "Verifying..."; }
     
     auth.signInWithEmailAndPassword(email, pass)
-        .then(() => { btn.disabled = false; btn.innerText = "Login"; })
+        .then(() => { if(btn) { btn.disabled = false; btn.innerText = "Login"; } })
         .catch(err => { 
-            btn.disabled = false; btn.innerText = "Login";
+            if(btn) { btn.disabled = false; btn.innerText = "Login"; }
             showToast(cleanError(err.message)); 
         });
 };
@@ -189,14 +177,13 @@ window.handleSignup = () => {
     const email = document.getElementById('reg-email').value.trim().toLowerCase();
     const pass = document.getElementById('reg-pass').value;
     if(!name || !email || !pass) return showToast("All fields are required");
-    
-    btn.disabled = true; btn.innerText = "Registering...";
+    if(btn) { btn.disabled = true; btn.innerText = "Registering..."; }
     
     auth.createUserWithEmailAndPassword(email, pass).then((result) => result.user.updateProfile({ displayName: name }).then(() => result.user)).then((user) => {
         user.sendEmailVerification(); showToast("Success! Please check your email."); setTimeout(() => { switchAuth('login'); }, 1500);
-        btn.disabled = false; btn.innerText = "Register";
+        if(btn) { btn.disabled = false; btn.innerText = "Register"; }
     }).catch(err => {
-        btn.disabled = false; btn.innerText = "Register";
+        if(btn) { btn.disabled = false; btn.innerText = "Register"; }
         showToast(cleanError(err.message));
     });
 };
@@ -356,7 +343,7 @@ window.toggleSelectAll = (type, mainCheckbox) => {
 };
 
 /* ========================================================
-   10. EVENT LISTENERS (FIXED INSERT & REFRESH)
+   10. EVENT LISTENERS
    ======================================================== */
 function setupEventListeners() {
     document.getElementById('btn-logout').addEventListener('click', () => auth.signOut());
@@ -368,35 +355,25 @@ function setupEventListeners() {
             const target = e.currentTarget.dataset.target; if(document.getElementById(target)) { document.getElementById(target).classList.add('active'); if(target === 'view-dashboard') updateDashboardStats(); }
         });
     });
-    // SEED DATA
     document.getElementById('btn-seed-data').addEventListener('click', window.seedData);
-    
-    // FILTERS
     document.getElementById('search-input').addEventListener('input', e => { state.filters.text = e.target.value.toLowerCase(); state.pagination.cand = 1; renderCandidateTable(); });
     document.getElementById('hub-search-input').addEventListener('input', e => { state.hubFilters.text = e.target.value.toLowerCase(); state.pagination.hub = 1; renderHubTable(); });
     document.getElementById('filter-recruiter').addEventListener('change', e => { state.filters.recruiter = e.target.value; state.pagination.cand = 1; renderCandidateTable(); });
     document.getElementById('filter-tech').addEventListener('change', e => { state.filters.tech = e.target.value; state.pagination.cand = 1; renderCandidateTable(); });
     document.querySelectorAll('.btn-toggle').forEach(btn => { btn.addEventListener('click', e => { document.querySelectorAll('.btn-toggle').forEach(b => b.classList.remove('active')); e.target.classList.add('active'); state.filters.status = e.target.dataset.status; state.pagination.cand = 1; renderCandidateTable(); }); });
-    
-    // REFRESH BUTTON (Properly Resets Filters)
     const btnReset = document.getElementById('btn-reset-filters');
     if (btnReset) btnReset.addEventListener('click', () => { document.getElementById('search-input').value = ''; document.getElementById('filter-recruiter').value = ''; document.getElementById('filter-tech').value = ''; document.querySelectorAll('.btn-toggle').forEach(b => b.classList.remove('active')); document.querySelector('.btn-toggle[data-status=""]').classList.add('active'); state.filters = { text: '', recruiter: '', tech: '', status: '' }; state.pagination.cand = 1; renderCandidateTable(); showToast("Filters refreshed"); });
 
-    // INSERT CANDIDATE (Clears filters to show new row)
     document.getElementById('btn-add-candidate').addEventListener('click', () => {
         document.getElementById('search-input').value = ''; document.getElementById('filter-recruiter').value = ''; document.getElementById('filter-tech').value = ''; document.querySelectorAll('.btn-toggle').forEach(b => b.classList.remove('active')); document.querySelector('.btn-toggle[data-status=""]').classList.add('active'); state.filters = { text: '', recruiter: '', tech: '', status: '' }; state.pagination.cand = 1;
         const newDoc = { first: '', last: '', mobile: '', wa: '', tech: '', recruiter: '', status: 'Active', assigned: new Date().toISOString().split('T')[0], comments: '', createdAt: Date.now(), submissionLog: [], screeningLog: [], interviewLog: [] };
         db.collection('candidates').add(newDoc).then(() => { renderCandidateTable(); showToast("New row inserted"); });
     });
-
-    // INSERT ONBOARDING
     document.getElementById('btn-add-onboarding').addEventListener('click', () => {
         state.pagination.onb = 1;
         const newDoc = { first: '', last: '', mobile: '', status: 'Onboarding', assigned: new Date().toISOString().split('T')[0], comments: '', createdAt: Date.now() };
         db.collection('onboarding').add(newDoc).then(() => { renderOnboardingTable(); showToast("New row inserted"); });
     });
-
-    // DELETE BUTTONS
     document.getElementById('btn-delete-selected').addEventListener('click', () => openDeleteModal('cand'));
     document.getElementById('btn-delete-onboarding').addEventListener('click', () => openDeleteModal('onb'));
 }
