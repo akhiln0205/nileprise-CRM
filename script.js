@@ -1,6 +1,5 @@
 /* ========================================================
    1. FIREBASE CONFIGURATION
-   (Ensure these keys match your Firebase Console)
    ======================================================== */
 const firebaseConfig = {
   apiKey: "AIzaSyAKth3o5XhUTLNZ8JSbsKPKEIHmqhTHHH4",
@@ -12,12 +11,7 @@ const firebaseConfig = {
   measurementId: "G-RP3R2P9JPF"
 };
 
-// Initialize Firebase
-try { 
-    firebase.initializeApp(firebaseConfig); 
-} catch (e) { 
-    console.error("Firebase Init Error:", e); 
-}
+try { firebase.initializeApp(firebaseConfig); } catch (e) { console.error("Firebase Init Error:", e); }
 const db = firebase.firestore();
 const auth = firebase.auth();
 
@@ -97,18 +91,14 @@ const dom = {
 };
 
 /* ========================================================
-   5. HELPER FUNCTIONS (Must be defined before Init)
+   5. HELPER FUNCTIONS
    ======================================================== */
-
-// --- FIX: THIS FUNCTION WAS MISSING OR ERRORED ---
 function renderDropdowns() {
-    // Safety Check: Only try to render if the element actually exists
     const rSelect = document.getElementById('filter-recruiter');
     if (rSelect && state.metadata.recruiters) {
         rSelect.innerHTML = `<option value="">All Recruiters</option>` + 
             state.metadata.recruiters.map(r => `<option value="${r}">${r}</option>`).join('');
     }
-
     const tSelect = document.getElementById('filter-tech');
     if (tSelect && state.metadata.techs) {
         tSelect.innerHTML = `<option value="">All Tech</option>` + 
@@ -206,7 +196,7 @@ function init() {
         // 1. Setup Event Listeners
         setupEventListeners();
         
-        // 2. Render Dropdowns (Now defined safely above)
+        // 2. Render Dropdowns
         renderDropdowns();
         
         // 3. Start Auth Listener
@@ -215,21 +205,20 @@ function init() {
                 console.log("User detected:", user.email);
                 
                 // --- WHITELIST CHECK ---
-                const email = user.email.toLowerCase();
-                // To allow everyone for testing, comment out the next 3 lines:
-                /* if (!ALLOWED_USERS[email]) { 
-                    auth.signOut(); showToast("Access Denied."); switchScreen('auth'); return; 
-                } */
+                // const email = user.email.toLowerCase();
+                // if (!ALLOWED_USERS[email]) { 
+                //     auth.signOut(); showToast("Access Denied."); switchScreen('auth'); return; 
+                // } 
                 
                 // --- EMAIL VERIFICATION CHECK ---
                 if (!user.emailVerified) { 
-                    document.getElementById('verify-email-display').innerText = email; 
+                    document.getElementById('verify-email-display').innerText = user.email; 
                     switchScreen('verify'); 
                     return; 
                 }
 
-                // Set User State
                 state.user = user;
+                const email = user.email.toLowerCase();
                 const knownUser = ALLOWED_USERS[email];
                 state.userRole = knownUser ? knownUser.role : 'Admin';
                 
@@ -242,7 +231,6 @@ function init() {
         });
     } catch (err) {
         console.error("Init Error:", err);
-        // Fallback to auth screen on error
         switchScreen('auth'); 
     }
     
@@ -256,7 +244,6 @@ function updateUserProfile(user, userData) {
     if(!user) return;
     const displayName = userData ? userData.name : (user.displayName || 'User');
     
-    // Safely update DOM elements if they exist
     if(dom.profile.profileUser) dom.profile.profileUser.innerText = displayName; 
     if(dom.profile.profileNameDisplay) dom.profile.profileNameDisplay.innerText = displayName;
     if(dom.profile.role) dom.profile.role.innerText = userData ? userData.role : 'Staff';
@@ -437,7 +424,10 @@ function setupEventListeners() {
             const target = e.currentTarget.dataset.target; if(document.getElementById(target)) { document.getElementById(target).classList.add('active'); if(target === 'view-dashboard') updateDashboardStats(); }
         });
     });
+    // SEED DATA
     document.getElementById('btn-seed-data').addEventListener('click', window.seedData);
+    
+    // FILTERS
     document.getElementById('search-input').addEventListener('input', e => { state.filters.text = e.target.value.toLowerCase(); state.pagination.cand = 1; renderCandidateTable(); });
     document.getElementById('hub-search-input').addEventListener('input', e => { state.hubFilters.text = e.target.value.toLowerCase(); state.pagination.hub = 1; renderHubTable(); });
     document.getElementById('filter-recruiter').addEventListener('change', e => { state.filters.recruiter = e.target.value; state.pagination.cand = 1; renderCandidateTable(); });
@@ -449,9 +439,7 @@ function setupEventListeners() {
 
     document.getElementById('btn-add-candidate').addEventListener('click', () => {
         state.filters = { text: '', recruiter: '', tech: '', status: '' }; state.pagination.cand = 1;
-        // Reset filter UI
         document.getElementById('search-input').value = ''; document.getElementById('filter-recruiter').value = ''; document.getElementById('filter-tech').value = '';
-        
         const newDoc = { first: '', last: '', mobile: '', wa: '', tech: '', recruiter: '', status: 'Active', assigned: new Date().toISOString().split('T')[0], comments: '', createdAt: Date.now(), submissionLog: [], screeningLog: [], interviewLog: [] };
         db.collection('candidates').add(newDoc).then(() => { renderCandidateTable(); showToast("New row inserted"); });
     });
