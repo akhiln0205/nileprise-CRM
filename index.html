@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>NILEPRISE CRM</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
@@ -42,13 +42,13 @@
             <div class="form-actions">
                 <span class="link-text" onclick="switchAuth('forgot')">Forgot Password?</span>
             </div>
-            <button class="btn btn-primary btn-block" onclick="handleLogin()">Login</button>
+            <button id="btn-login-action" class="btn btn-primary btn-block" onclick="handleLogin()">Login</button>
             <p class="switch-text">First time? <span onclick="switchAuth('signup')">Activate Account</span></p>
         </div>
 
         <div id="form-signup" class="auth-form">
             <h3 class="form-title">Activate Account</h3>
-            <p>Only authorized Nileprise staff can register.</p>
+            <p class="warning-text">Only authorized Nileprise staff can register.</p>
             <div class="input-group">
                 <i class="fa-solid fa-user"></i>
                 <input type="text" id="reg-name" placeholder="Full Name">
@@ -61,7 +61,7 @@
                 <i class="fa-solid fa-lock"></i>
                 <input type="password" id="reg-pass" placeholder="Set Password (Min 6 chars)">
             </div>
-            <button class="btn btn-primary btn-block" onclick="handleSignup()">Register</button>
+            <button id="btn-signup-action" class="btn btn-primary btn-block" onclick="handleSignup()">Register</button>
             <p class="switch-text">Back to <span onclick="switchAuth('login')">Login</span></p>
         </div>
 
@@ -122,7 +122,6 @@
             <div class="admin-pill">
               <span id="display-username" style="display:none;"></span>
               <img id="user-avatar" src="" style="display:none;">
-              <small id="display-role" style="display:none;"></small>
               <div id="user-avatar-placeholder" style="display:none;"></div>
               
               <button id="theme-toggle" class="btn-icon" style="margin-right: 10px;"><i class="fa-solid fa-sun"></i></button>
@@ -155,7 +154,6 @@
               </div>
               
               <button id="btn-delete-selected" class="btn btn-danger" style="display: none;"><i class="fa-solid fa-trash-can"></i> Delete (<span id="selected-count">0</span>)</button>
-              
             </div>
             <div class="filters-group">
               <div class="search-box"><i class="fa-solid fa-search"></i><input type="text" id="search-input" placeholder="Search..."></div>
