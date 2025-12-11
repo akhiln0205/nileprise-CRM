@@ -48,7 +48,9 @@
 
         <div id="form-signup" class="auth-form">
             <h3 class="form-title">Activate Account</h3>
-            <p class="warning-text">Only authorized Nileprise staff can register.</p>
+            <p style="color:#f59e0b; background:rgba(0,0,0,0.3); padding:10px; border-radius:6px; font-size:0.85rem; margin-bottom:15px;">
+                <i class="fa-solid fa-shield-halved"></i> Only authorized staff emails can register.
+            </p>
             <div class="input-group">
                 <i class="fa-solid fa-user"></i>
                 <input type="text" id="reg-name" placeholder="Full Name">
@@ -122,6 +124,7 @@
             <div class="admin-pill">
               <span id="display-username" style="display:none;"></span>
               <img id="user-avatar" src="" style="display:none;">
+              <small id="display-role" style="display:none;"></small>
               <div id="user-avatar-placeholder" style="display:none;"></div>
               
               <button id="theme-toggle" class="btn-icon" style="margin-right: 10px;"><i class="fa-solid fa-sun"></i></button>
@@ -146,13 +149,11 @@
           <div class="toolbar glass-panel">
             <div class="left-actions">
               <button id="btn-add-candidate" class="btn btn-primary"><i class="fa-solid fa-plus"></i> Insert Row</button>
-              
               <div class="status-toggles">
                 <button class="btn-toggle active" data-status="">All</button>
                 <button class="btn-toggle" data-status="Active">Active</button>
                 <button class="btn-toggle" data-status="Inactive">Inactive</button>
               </div>
-              
               <button id="btn-delete-selected" class="btn btn-danger" style="display: none;"><i class="fa-solid fa-trash-can"></i> Delete (<span id="selected-count">0</span>)</button>
             </div>
             <div class="filters-group">
