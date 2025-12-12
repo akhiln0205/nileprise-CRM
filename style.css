@@ -60,13 +60,7 @@ body { margin: 0; font-family: 'Inter', sans-serif; background-color: var(--bg-a
 .form-title { font-size: 1.5rem; margin-bottom: 25px; color: var(--text-main); }
 .input-group { position: relative; margin-bottom: 15px; }
 .input-group i { position: absolute; left: 15px; top: 50%; transform: translateY(-50%); color: rgba(255,255,255,0.7) !important; z-index: 10; }
-.input-group input { 
-    width: 100%; padding: 12px 12px 12px 45px; border-radius: 8px; 
-    border: 1px solid rgba(255, 255, 255, 0.2); 
-    background: rgba(255, 255, 255, 0.1); 
-    color: #ffffff !important; 
-    transition: 0.3s; 
-}
+.input-group input { width: 100%; padding: 12px 12px 12px 45px; border-radius: 8px; border: 1px solid rgba(255, 255, 255, 0.2); background: rgba(255, 255, 255, 0.1); color: #ffffff !important; transition: 0.3s; }
 .input-group input:focus { border-color: var(--primary); background: rgba(255, 255, 255, 0.2); }
 .input-group input::placeholder { color: rgba(255,255,255,0.6) !important; opacity: 1; }
 .form-actions { display: flex; justify-content: flex-end; margin-bottom: 20px; font-size: 0.85rem; }
@@ -107,7 +101,28 @@ body { margin: 0; font-family: 'Inter', sans-serif; background-color: var(--bg-a
 .content-view { display: none; animation: fadeIn 0.3s ease; }
 .content-view.active { display: block; }
 
-/* TABLES */
+/* === PROFESSIONAL DASHBOARD STYLES === */
+.dashboard-header-row { display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 25px; padding-bottom: 15px; border-bottom: 1px solid var(--glass-border); }
+.date-badge { background: var(--glass-bg); border: 1px solid var(--glass-border); padding: 8px 15px; border-radius: 20px; font-size: 0.85rem; color: var(--primary); font-weight: 600; }
+.kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px; margin-bottom: 25px; }
+.charts-grid { display: grid; grid-template-columns: 2fr 1fr; gap: 20px; }
+@media (max-width: 900px) { .charts-grid { grid-template-columns: 1fr; } }
+.kpi-card { background: linear-gradient(145deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.01) 100%); border: 1px solid var(--glass-border); border-radius: 12px; padding: 25px; display: flex; justify-content: space-between; align-items: center; position: relative; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.1); }
+.kpi-card.accent-blue { border-left: 4px solid #06b6d4; }
+.kpi-card.accent-gold { border-left: 4px solid #f59e0b; }
+.kpi-card.accent-purple { border-left: 4px solid #8b5cf6; }
+.kpi-label { font-size: 0.85rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; font-weight: 600; }
+.kpi-value { font-size: 2.2rem; margin: 10px 0 5px; font-weight: 700; color: var(--text-main); }
+.kpi-trend { font-size: 0.8rem; color: var(--text-muted); display: flex; align-items: center; gap: 5px; }
+.kpi-trend.positive { color: #22c55e; }
+.kpi-icon { font-size: 2rem; opacity: 0.15; color: var(--text-main); background: rgba(255,255,255,0.1); padding: 15px; border-radius: 12px; }
+.chart-container { background: var(--glass-bg); border: 1px solid var(--glass-border); border-radius: 12px; padding: 20px; display: flex; flex-direction: column; }
+.chart-top { display: flex; justify-content: space-between; margin-bottom: 20px; }
+.chart-top h4 { margin: 0; font-size: 1rem; font-weight: 600; color: var(--text-main); }
+.btn-icon-small { background: transparent; border: none; color: var(--text-muted); cursor: pointer; }
+.canvas-wrapper { position: relative; flex: 1; min-height: 250px; }
+
+/* TABLES & FORMS */
 .toolbar { padding: 15px; display: flex; justify-content: space-between; gap: 15px; margin-bottom: 20px; flex-wrap: wrap; align-items: center; }
 .filters-group { display: flex; gap: 10px; flex: 1; align-items: center; justify-content: flex-end; }
 .search-box, .filter-box { position: relative; max-width: 180px; flex: 1; }
