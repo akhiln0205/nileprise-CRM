@@ -73,8 +73,8 @@ body { margin: 0; font-family: 'Inter', sans-serif; background-color: var(--bg-a
 .screen { display: none; height: 100%; width: 100%; }
 .screen.active { display: flex; }
 #auth-screen, #verify-screen { justify-content: center; align-items: center; background: linear-gradient(rgba(2, 6, 23, 0.1), rgba(2, 6, 23, 0.1)), url('https://nileprise.com/wp-content/uploads/2022/01/Layer-1.jpg'); background-size: cover; background-position: center; background-repeat: no-repeat; }
-#verify-screen { background: linear-gradient(rgba(2, 6, 23, 0.8), rgba(2, 6, 23, 0.9)), url('https://nileprise.com/wp-content/uploads/2022/01/Layer-1.jpg'); background-size: cover; background-position: center; }
-.auth-box { width: 400px; padding: 40px; text-align: center; background: rgba(15, 23, 42, 0.6); backdrop-filter: blur(20px); }
+#verify-screen { background: linear-gradient(rgba(2, 6, 23, 0.1), rgba(2, 6, 23, 0.1)), url('https://nileprise.com/wp-content/uploads/2022/01/Layer-1.jpg'); background-size: cover; background-position: center; }
+.auth-box { width: 400px; padding: 40px; text-align: center; background: rgba(15, 23, 42, 0.1); backdrop-filter: blur(20px); }
 .brand-large { font-size: 2.5rem; font-weight: 800; margin-bottom: 5px; }
 
 /* SIDEBAR & MAIN */
