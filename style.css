@@ -43,7 +43,7 @@ body { margin: 0; font-family: 'Inter', sans-serif; background-color: var(--bg-a
 .blob-3 { width: 200px; height: 200px; background: #8b5cf6; top: 50%; left: 50%; transform: translate(-50%, -50%); opacity: 0.2; }
 @keyframes float { 0% { transform: translate(0, 0); } 100% { transform: translate(30px, 50px); } }
 
-/* COMPONENTS */
+/* UTILS */
 .glass-panel { background: var(--glass-bg); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); border: 1px solid var(--glass-border); border-radius: 16px; box-shadow: 0 4px 30px rgba(0, 0, 0, 0.05); transition: background 0.3s, border 0.3s; }
 .text-cyan { color: var(--primary); } .text-gold { color: var(--accent); } .text-white { color: var(--text-main); }
 .text-danger { color: var(--danger); }
@@ -54,17 +54,23 @@ body { margin: 0; font-family: 'Inter', sans-serif; background-color: var(--bg-a
 .btn-danger:hover { background: #dc2626; }
 .btn-block { width: 100%; }
 
-/* AUTH */
+/* AUTH - INPUT VISIBILITY FIX */
 .auth-form { display: none; animation: fadeIn 0.4s ease; }
 .auth-form.active { display: block; }
 .form-title { font-size: 1.5rem; margin-bottom: 25px; color: var(--text-main); }
 .input-group { position: relative; margin-bottom: 15px; }
-.input-group i { position: absolute; left: 15px; top: 50%; transform: translateY(-50%); color: var(--text-muted); }
-.input-group input { width: 100%; padding: 12px 12px 12px 45px; border-radius: 8px; border: 1px solid var(--glass-border); background: rgba(0,0,0,0.2); color: var(--text-main); transition: 0.3s; }
-.input-group input:focus { border-color: var(--primary); background: rgba(0,0,0,0.4); }
+.input-group i { position: absolute; left: 15px; top: 50%; transform: translateY(-50%); color: rgba(255,255,255,0.7) !important; z-index: 10; }
+.input-group input { 
+    width: 100%; padding: 12px 12px 12px 45px; border-radius: 8px; 
+    border: 1px solid rgba(255, 255, 255, 0.2); 
+    background: rgba(255, 255, 255, 0.1); 
+    color: #ffffff !important; 
+    transition: 0.3s; 
+}
+.input-group input:focus { border-color: var(--primary); background: rgba(255, 255, 255, 0.2); }
+.input-group input::placeholder { color: rgba(255,255,255,0.6) !important; opacity: 1; }
 .form-actions { display: flex; justify-content: flex-end; margin-bottom: 20px; font-size: 0.85rem; }
 .link-text { color: var(--primary); cursor: pointer; }
-.link-text:hover { text-decoration: underline; }
 .switch-text { margin-top: 20px; font-size: 0.9rem; color: var(--text-muted); }
 .switch-text span { color: var(--primary); font-weight: 600; cursor: pointer; }
 
@@ -73,8 +79,8 @@ body { margin: 0; font-family: 'Inter', sans-serif; background-color: var(--bg-a
 .screen { display: none; height: 100%; width: 100%; }
 .screen.active { display: flex; }
 #auth-screen, #verify-screen { justify-content: center; align-items: center; background: linear-gradient(rgba(2, 6, 23, 0.1), rgba(2, 6, 23, 0.1)), url('https://nileprise.com/wp-content/uploads/2022/01/Layer-1.jpg'); background-size: cover; background-position: center; background-repeat: no-repeat; }
-#verify-screen { background: linear-gradient(rgba(2, 6, 23, 0.1), rgba(2, 6, 23, 0.1)), url('https://nileprise.com/wp-content/uploads/2022/01/Layer-1.jpg'); background-size: cover; background-position: center; }
-.auth-box { width: 400px; padding: 40px; text-align: center; background: rgba(15, 23, 42, 0.1); backdrop-filter: blur(20px); }
+#verify-screen { background: linear-gradient(rgba(2, 6, 23, 0.8), rgba(2, 6, 23, 0.9)), url('https://nileprise.com/wp-content/uploads/2022/01/Layer-1.jpg'); background-size: cover; background-position: center; }
+.auth-box { width: 400px; padding: 40px; text-align: center; background: rgba(15, 23, 42, 0.6); backdrop-filter: blur(20px); }
 .brand-large { font-size: 2.5rem; font-weight: 800; margin-bottom: 5px; }
 
 /* SIDEBAR & MAIN */
@@ -91,7 +97,7 @@ body { margin: 0; font-family: 'Inter', sans-serif; background-color: var(--bg-a
 .header-widget .value { font-size: 0.85rem; color: var(--primary); font-weight: 600; }
 .v-divider { width: 1px; height: 24px; background: var(--glass-border); }
 
-/* HEADER PROFILE HIDE */
+/* HEADER CLEANUP */
 .top-bar .admin-text, .top-bar .avatar, .top-bar .avatar-img-small, .top-bar .v-divider-small { display: none !important; }
 .top-bar .admin-pill { padding: 0; border: none; background: transparent; width: auto; display: flex; align-items: center; margin-left: 5px; }
 .btn-icon, .logout-icon { cursor: pointer; background: none; border: none; color: var(--text-main); }
