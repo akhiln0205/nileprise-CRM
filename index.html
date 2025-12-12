@@ -1,66 +1,354 @@
-<div id="view-dashboard" class="content-view active">
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>NILEPRISE CRM</title>
   
-  <div class="dashboard-header-row">
-    <div>
-        <h2 style="margin:0;">Executive Overview</h2>
-        <p style="margin:0; opacity:0.6; font-size:0.9rem;">Real-time CRM metrics & performance</p>
-    </div>
-    <div class="date-badge">
-        <i class="fa-regular fa-calendar"></i> <span id="current-date-display">Live</span>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <div class="bg-animation">
+    <div class="blob blob-1"></div>
+    <div class="blob blob-2"></div>
+    <div class="blob blob-3"></div>
+  </div>
+
+  <div id="toast" class="toast">
+    <i class="fa-solid fa-circle-info"></i>
+    <span id="toast-msg">Notification</span>
+  </div>
+
+  <div id="app" class="app-container">
+
+    <section id="auth-screen" class="screen active">
+      <div class="glass-panel auth-box">
+        <div class="brand-large"><span class="text-cyan">N</span><span class="text-white">ILE</span><span class="text-gold">PRISE</span></div>
+        <p class="subtitle">Next Innovative Leading Enterprises</p>
+        
+        <div id="form-login" class="auth-form active">
+            <h3 class="form-title">Secure Portal Login</h3>
+            <div class="input-group">
+                <i class="fa-solid fa-envelope"></i>
+                <input type="email" id="login-email" placeholder="Official Email ID" autocomplete="email">
+            </div>
+            <div class="input-group">
+                <i class="fa-solid fa-lock"></i>
+                <input type="password" id="login-pass" placeholder="Password" autocomplete="current-password">
+            </div>
+            <div class="form-actions">
+                <span class="link-text" onclick="switchAuth('forgot')">Forgot Password?</span>
+            </div>
+            <button id="btn-login-action" class="btn btn-primary btn-block" onclick="handleLogin()">Login</button>
+            <p class="switch-text">First time? <span onclick="switchAuth('signup')">Activate Account</span></p>
+        </div>
+
+        <div id="form-signup" class="auth-form">
+            <h3 class="form-title">Activate Account</h3>
+            <p style="color:#f59e0b; background:rgba(0,0,0,0.3); padding:10px; border-radius:6px; font-size:0.85rem; margin-bottom:15px;">
+                <i class="fa-solid fa-shield-halved"></i> Only authorized staff emails can register.
+            </p>
+            <div class="input-group">
+                <i class="fa-solid fa-user"></i>
+                <input type="text" id="reg-name" placeholder="Full Name">
+            </div>
+            <div class="input-group">
+                <i class="fa-solid fa-envelope"></i>
+                <input type="email" id="reg-email" placeholder="Official Email ID">
+            </div>
+            <div class="input-group">
+                <i class="fa-solid fa-lock"></i>
+                <input type="password" id="reg-pass" placeholder="Set Password (Min 6 chars)">
+            </div>
+            <button id="btn-signup-action" class="btn btn-primary btn-block" onclick="handleSignup()">Register</button>
+            <p class="switch-text">Back to <span onclick="switchAuth('login')">Login</span></p>
+        </div>
+
+        <div id="form-forgot" class="auth-form">
+            <h3 class="form-title">Reset Password</h3>
+            <div class="input-group">
+                <i class="fa-solid fa-envelope"></i>
+                <input type="email" id="reset-email" placeholder="Official Email ID">
+            </div>
+            <button class="btn btn-primary btn-block" onclick="handleReset()">Send Reset Link</button>
+            <p class="switch-text"><span onclick="switchAuth('login')">Back to Login</span></p>
+        </div>
+      </div>
+    </section>
+
+    <section id="verify-screen" class="screen">
+      <div class="glass-panel auth-box">
+        <div class="icon-box gold" style="margin: 0 auto 20px; width: 60px; height: 60px; font-size: 1.5rem; border-radius: 50%;">
+          <i class="fa-solid fa-envelope-open-text"></i>
+        </div>
+        <h3 class="form-title">Verify Your Email</h3>
+        <p class="subtitle" style="line-height: 1.6; margin-bottom: 25px; opacity: 0.8; font-size: 0.8rem; background: none; -webkit-text-fill-color: var(--text-main); filter: none;">
+          We've sent a verification link to <br>
+          <span id="verify-email-display" class="text-cyan" style="font-weight: bold;"></span>
+        </p>
+        <button class="btn btn-primary btn-block" onclick="checkVerificationStatus()">
+          <i class="fa-solid fa-rotate"></i> I Have Verified
+        </button>
+        <div style="margin-top: 20px; display: flex; justify-content: space-between; font-size: 0.85rem;">
+          <span class="link-text" onclick="resendVerificationEmail()">Resend Email</span>
+          <span class="link-text text-danger" onclick="firebase.auth().signOut()">Logout</span>
+        </div>
+      </div>
+    </section>
+
+    <section id="dashboard-screen" class="screen">
+      
+      <aside class="sidebar glass-panel">
+        <div class="brand-small"><span class="text-cyan">NILE</span><span class="text-white">PRISE</span> <span class="text-gold">CRM</span></div>
+        <nav class="nav-menu">
+          <button class="nav-item active" data-target="view-dashboard"><i class="fa-solid fa-chart-pie"></i> <span>Overview</span></button>
+          <button class="nav-item" data-target="view-candidates"><i class="fa-solid fa-users"></i> <span>Candidates</span></button>
+          <button class="nav-item" data-target="view-hub"><i class="fa-solid fa-id-card"></i> <span>Candidate Hub</span></button>
+          <button class="nav-item" data-target="view-onboarding"><i class="fa-solid fa-user-check"></i> <span>Onboarding</span></button>
+          <button class="nav-item" data-target="view-profile"><i class="fa-solid fa-user-gear"></i> <span>Profile</span></button>
+          <button class="nav-item" data-target="view-settings"><i class="fa-solid fa-gear"></i> <span>Settings</span></button>
+        </nav>
+      </aside>
+
+      <main class="main-content">
+        
+        <header class="top-bar">
+          <h2 id="page-title">Dashboard</h2>
+          <div class="header-right">
+            <div class="header-widget"><span class="label">Live Sync:</span><span id="header-updated" class="value" style="color:#22c55e">Active</span></div>
+            <div class="v-divider"></div>
+            
+            <div class="admin-pill">
+              <span id="display-username" style="display:none;"></span>
+              <img id="user-avatar" src="" style="display:none;">
+              <small id="display-role" style="display:none;"></small>
+              <div id="user-avatar-placeholder" style="display:none;"></div>
+              <button id="theme-toggle" class="btn-icon" style="margin-right: 10px;"><i class="fa-solid fa-sun"></i></button>
+              <button id="btn-logout" class="logout-icon"><i class="fa-solid fa-power-off"></i></button>
+            </div>
+          </div>
+        </header>
+
+        <div id="view-dashboard" class="content-view active">
+          
+          <div class="dashboard-header-row">
+            <div>
+                <h2 style="margin:0;">Executive Overview</h2>
+                <p style="margin:0; opacity:0.6; font-size:0.9rem;">Real-time CRM metrics & performance</p>
+            </div>
+            <div class="date-badge">
+                <i class="fa-regular fa-calendar"></i> <span id="current-date-display">Live</span>
+            </div>
+          </div>
+
+          <div class="kpi-grid">
+            <div class="kpi-card accent-blue">
+              <div class="kpi-content">
+                <span class="kpi-label">Total Candidates</span>
+                <h1 id="stat-total" class="kpi-value">0</h1>
+                <div class="kpi-trend positive"><i class="fa-solid fa-arrow-up"></i> Database Active</div>
+              </div>
+              <div class="kpi-icon"><i class="fa-solid fa-users"></i></div>
+            </div>
+
+            <div class="kpi-card accent-gold">
+              <div class="kpi-content">
+                <span class="kpi-label">Technologies</span>
+                <h1 id="stat-tech" class="kpi-value">0</h1>
+                <div class="kpi-trend"><i class="fa-solid fa-layer-group"></i> Tech Stack</div>
+              </div>
+              <div class="kpi-icon"><i class="fa-solid fa-microchip"></i></div>
+            </div>
+
+            <div class="kpi-card accent-purple">
+              <div class="kpi-content">
+                <span class="kpi-label">Active Recruiters</span>
+                <h1 id="stat-rec" class="kpi-value">0</h1>
+                <div class="kpi-trend"><i class="fa-solid fa-briefcase"></i> Team Size</div>
+              </div>
+              <div class="kpi-icon"><i class="fa-solid fa-user-tie"></i></div>
+            </div>
+          </div>
+
+          <div class="charts-grid">
+            <div class="chart-container large-chart">
+                <div class="chart-top">
+                    <h4>Recruiter Performance</h4>
+                    <button class="btn-icon-small"><i class="fa-solid fa-ellipsis"></i></button>
+                </div>
+                <div class="canvas-wrapper">
+                    <canvas id="chart-recruiter"></canvas>
+                </div>
+            </div>
+            <div class="chart-container small-chart">
+                <div class="chart-top">
+                    <h4>Technology Spread</h4>
+                </div>
+                <div class="canvas-wrapper">
+                    <canvas id="chart-tech"></canvas>
+                </div>
+            </div>
+          </div>
+        </div>
+
+        <div id="view-candidates" class="content-view">
+          <div class="toolbar glass-panel">
+            <div class="left-actions">
+              <button id="btn-add-candidate" class="btn btn-primary"><i class="fa-solid fa-plus"></i> Insert Row</button>
+              <div class="status-toggles">
+                <button class="btn-toggle active" data-status="">All</button>
+                <button class="btn-toggle" data-status="Active">Active</button>
+                <button class="btn-toggle" data-status="Inactive">Inactive</button>
+              </div>
+              <button id="btn-delete-selected" class="btn btn-danger" style="display: none;"><i class="fa-solid fa-trash-can"></i> Delete (<span id="selected-count">0</span>)</button>
+            </div>
+            <div class="filters-group">
+              <div class="search-box"><i class="fa-solid fa-search"></i><input type="text" id="search-input" placeholder="Search..."></div>
+              <div class="filter-box"><i class="fa-solid fa-user-tie"></i><select id="filter-recruiter"><option value="">All Recruiters</option></select></div>
+              <div class="filter-box"><i class="fa-solid fa-code"></i><select id="filter-tech"><option value="">All Tech</option></select></div>
+              <button id="btn-reset-filters" class="btn-icon"><i class="fa-solid fa-rotate-right"></i></button>
+            </div>
+          </div>
+          <div class="table-container glass-panel">
+            <div class="table-wrapper"><table class="modern-table"><thead id="table-head"></thead><tbody id="table-body"></tbody></table></div>
+            <div class="pagination-bar"><span id="page-info">Page 1 of 1</span><div class="pagination-controls" id="pagination-controls"></div></div>
+          </div>
+        </div>
+
+        <div id="view-hub" class="content-view">
+          <div class="toolbar glass-panel">
+            <div class="filters-group" style="justify-content: space-between; width:100%;">
+                <h3 style="margin:0; color:var(--text-muted); font-size: 0.9rem; text-transform: uppercase;">Activity Hub</h3>
+                <div class="search-box"><i class="fa-solid fa-search"></i><input type="text" id="hub-search-input" placeholder="Search Candidate..."></div>
+            </div>
+          </div>
+          <div class="table-container glass-panel">
+            <div class="table-wrapper"><table class="modern-table" id="hub-table"><thead id="hub-table-head"></thead><tbody id="hub-table-body"></tbody></table></div>
+            <div class="pagination-bar"><span id="hub-page-info">Page 1 of 1</span><div class="pagination-controls" id="hub-pagination-controls"></div></div>
+          </div>
+        </div>
+
+        <div id="view-onboarding" class="content-view">
+          <div class="toolbar glass-panel">
+            <div class="left-actions">
+               <button id="btn-add-onboarding" class="btn btn-primary"><i class="fa-solid fa-user-plus"></i> Insert Row</button>
+               <button id="btn-delete-onboarding" class="btn btn-danger" style="display: none;"><i class="fa-solid fa-trash-can"></i> Delete (<span id="onboarding-selected-count">0</span>)</button>
+            </div>
+            <div class="filters-group" style="justify-content: flex-end; gap: 15px;">
+                <div class="search-box">
+                    <i class="fa-solid fa-search"></i>
+                    <input type="text" id="onb-search-input" placeholder="Search Name...">
+                </div>
+                <h3 style="margin:0; color:var(--text-muted); font-size: 0.9rem; text-transform: uppercase; white-space: nowrap;">Onboarding List</h3>
+            </div>
+          </div>
+          <div class="table-container glass-panel">
+            <div class="table-wrapper">
+                <table class="modern-table" id="onboarding-table">
+                    <thead id="onboarding-table-head"></thead>
+                    <tbody id="onboarding-table-body"></tbody>
+                </table>
+            </div>
+            <div class="pagination-bar">
+                <span id="onboarding-page-info">Page 1 of 1</span>
+                <div class="pagination-controls" id="onboarding-pagination-controls"></div>
+            </div>
+          </div>
+        </div>
+
+        <div id="view-profile" class="content-view">
+          <div class="glass-panel profile-container">
+            <div class="profile-header">
+              <div class="profile-banner"></div>
+              <div class="profile-info-block">
+                <div class="profile-avatar-wrapper">
+                  <img id="profile-main-img" src="" class="avatar-img" style="display:none;">
+                  <div id="profile-main-icon" class="avatar-placeholder"><i class="fa-solid fa-user"></i></div>
+                </div>
+                <div class="profile-names"><h2 id="prof-name-display">User Name</h2><p id="prof-role-display" class="role">Staff Member</p></div>
+              </div>
+            </div>
+            <div class="profile-body">
+               <div class="form-grid">
+                  <div class="form-group"><label>Email</label><input type="email" id="prof-email" readonly></div>
+                  <div class="form-group"><label>Username</label><input type="text" id="prof-username" readonly></div>
+                  <div class="form-group"><label>Last Login</label><input type="text" id="prof-last-login" readonly></div>
+               </div>
+            </div>
+          </div>
+        </div>
+
+        <div id="view-settings" class="content-view">
+            <h2 style="margin-bottom: 20px; color: var(--primary);">Settings</h2>
+            <div class="settings-grid">
+              <div class="glass-panel setting-card">
+                <h3><i class="fa-solid fa-paintbrush"></i> Appearance</h3>
+                <div class="setting-item"><div class="setting-info"><h4>Dark Mode</h4><small>Toggle theme</small></div><label class="switch"><input type="checkbox" id="setting-theme-toggle" checked><span class="slider round"></span></label></div>
+              </div>
+              <div class="glass-panel setting-card">
+                <h3><i class="fa-solid fa-database"></i> Data Management</h3>
+                <div class="setting-actions" style="display:flex; flex-direction:column; gap:10px;">
+                    <button class="btn btn-primary btn-block" onclick="exportData()"><i class="fa-solid fa-download"></i> Export CSV</button>
+                    <button id="btn-seed-data" class="btn btn-block" style="border:1px solid var(--primary); color:var(--primary); background:transparent;">
+                        <i class="fa-solid fa-database"></i> Generate Demo Data (25)
+                    </button>
+                </div>
+              </div>
+            </div>
+        </div>
+
+      </main>
+    </section>
+  </div>
+
+  <div id="activity-modal" class="modal-overlay">
+    <div class="glass-panel modal-box">
+        <div class="modal-header"><h3 id="act-modal-title">Activity</h3><button class="btn-icon" onclick="closeActivityModal()"><i class="fa-solid fa-xmark"></i></button></div>
+        <div class="modal-body">
+            <div class="activity-stats">
+                <div class="stat-box"><h4>This Week</h4><span id="act-week">0</span></div>
+                <div class="stat-box"><h4>This Month</h4><span id="act-month">0</span></div>
+                <div class="stat-box"><h4>Total</h4><span id="act-total">0</span></div>
+            </div>
+            <div class="activity-add">
+                <div class="input-group" style="margin:0; flex:1;"><i class="fa-solid fa-calendar"></i><input type="date" id="act-date-input"></div>
+                <button class="btn btn-primary" onclick="saveActivityLog()">Add Log</button>
+            </div>
+            <div class="activity-history-container">
+                <ul id="act-history-list" class="activity-history-list"></ul>
+            </div>
+        </div>
     </div>
   </div>
 
-  <div class="kpi-grid">
-    
-    <div class="kpi-card accent-blue">
-      <div class="kpi-content">
-        <span class="kpi-label">Total Candidates</span>
-        <h1 id="stat-total" class="kpi-value">0</h1>
-        <div class="kpi-trend positive"><i class="fa-solid fa-arrow-up"></i> Database Active</div>
+  <div id="delete-modal" class="modal-overlay">
+    <div class="glass-panel modal-box" style="max-width: 400px; text-align: center;">
+      <div class="modal-body">
+        <div class="icon-box" style="margin: 0 auto 20px; background: rgba(239,68,68,0.2); color: var(--danger); width: 60px; height: 60px; border-radius: 50%; font-size: 1.5rem;">
+          <i class="fa-solid fa-triangle-exclamation"></i>
+        </div>
+        <h3 style="margin-bottom: 10px; font-size: 1.2rem;">Confirm Deletion</h3>
+        <p style="color: var(--text-muted); margin-bottom: 30px;">
+          Are you sure you want to permanently delete <span id="del-count" style="color: var(--text-main); font-weight: bold;">0</span> items? 
+        </p>
+        <div style="display: flex; gap: 10px; justify-content: center;">
+          <button class="btn" style="background: rgba(255,255,255,0.1); color: var(--text-main);" onclick="closeDeleteModal()">Cancel</button>
+          <button class="btn btn-danger" onclick="executeDelete()">Yes, Delete</button>
+        </div>
       </div>
-      <div class="kpi-icon"><i class="fa-solid fa-users"></i></div>
     </div>
-
-    <div class="kpi-card accent-gold">
-      <div class="kpi-content">
-        <span class="kpi-label">Technologies</span>
-        <h1 id="stat-tech" class="kpi-value">0</h1>
-        <div class="kpi-trend"><i class="fa-solid fa-layer-group"></i> Tech Stack</div>
-      </div>
-      <div class="kpi-icon"><i class="fa-solid fa-microchip"></i></div>
-    </div>
-
-    <div class="kpi-card accent-purple">
-      <div class="kpi-content">
-        <span class="kpi-label">Active Recruiters</span>
-        <h1 id="stat-rec" class="kpi-value">0</h1>
-        <div class="kpi-trend"><i class="fa-solid fa-briefcase"></i> Team Size</div>
-      </div>
-      <div class="kpi-icon"><i class="fa-solid fa-user-tie"></i></div>
-    </div>
-
   </div>
 
-  <div class="charts-grid">
-    
-    <div class="chart-container large-chart">
-        <div class="chart-top">
-            <h4>Recruiter Performance</h4>
-            <button class="btn-icon-small"><i class="fa-solid fa-ellipsis"></i></button>
-        </div>
-        <div class="canvas-wrapper">
-            <canvas id="chart-recruiter"></canvas>
-        </div>
-    </div>
-
-    <div class="chart-container small-chart">
-        <div class="chart-top">
-            <h4>Technology Spread</h4>
-        </div>
-        <div class="canvas-wrapper">
-            <canvas id="chart-tech"></canvas>
-        </div>
-    </div>
-
-  </div>
-</div>
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+  
+  <script src="script.js"></script>
+</body>
+</html>
