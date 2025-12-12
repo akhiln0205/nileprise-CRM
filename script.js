@@ -39,8 +39,11 @@ const state = {
     userRole: null, 
     candidates: [], 
     onboarding: [],
+    // FILTERS
     filters: { text: '', recruiter: '', tech: '', status: '' },
     hubFilters: { text: '' },
+    onbFilters: { text: '' }, 
+    // PAGINATION
     pagination: { cand: 1, hub: 1, onb: 1, limit: 10 },
     selection: { cand: new Set(), onb: new Set() },
     modal: { id: null, type: null },
@@ -187,28 +190,17 @@ window.resendVerificationEmail = () => {
 };
 
 /* ========================================================
-   7. INITIALIZATION (The Core Logic)
+   7. INITIALIZATION
    ======================================================== */
 function init() {
     try {
         console.log("App Initializing...");
-        
-        // 1. Setup Event Listeners
         setupEventListeners();
-        
-        // 2. Render Dropdowns
         renderDropdowns();
         
-        // 3. Start Auth Listener
         auth.onAuthStateChanged(user => {
             if (user) {
                 console.log("User detected:", user.email);
-                
-                // --- WHITELIST CHECK ---
-                // const email = user.email.toLowerCase();
-                // if (!ALLOWED_USERS[email]) { 
-                //     auth.signOut(); showToast("Access Denied."); switchScreen('auth'); return; 
-                // } 
                 
                 // --- EMAIL VERIFICATION CHECK ---
                 if (!user.emailVerified) { 
@@ -233,8 +225,6 @@ function init() {
         console.error("Init Error:", err);
         switchScreen('auth'); 
     }
-    
-    // Load Theme
     if(localStorage.getItem('np_theme') === 'light') {
         document.body.classList.add('light-mode');
     }
@@ -263,7 +253,7 @@ function updateUserProfile(user, userData) {
 }
 
 /* ========================================================
-   8. REAL-TIME DATA & TABLES
+   8. REAL-TIME DATA
    ======================================================== */
 function initRealtimeListeners() {
     db.collection('candidates').orderBy('createdAt', 'desc').limit(50).onSnapshot(snap => {
@@ -282,6 +272,9 @@ function initRealtimeListeners() {
 
 function refreshAllTables() { renderCandidateTable(); renderHubTable(); }
 
+/* ========================================================
+   9. RENDERERS
+   ======================================================== */
 function renderCandidateTable() {
     const { filtered } = getFilteredData(state.candidates, state.filters, state.pagination.cand);
     const headers = ['<input type="checkbox" id="select-all-cand" onclick="toggleSelectAll(\'cand\', this)">', '#', 'First Name', 'Last Name', 'Mobile', 'WhatsApp', 'Tech', 'Recruiter', 'Status', 'Assigned', 'Gmail', 'LinkedIn', 'Resume', 'Track', 'Comments'];
@@ -329,9 +322,18 @@ function renderHubTable() {
 }
 
 function renderOnboardingTable() {
-    const totalPages = Math.ceil(state.onboarding.length / state.pagination.limit);
+    // 1. Filter Logic
+    const filtered = state.onboarding.filter(item => {
+        const searchText = state.onbFilters.text;
+        const fullName = (item.first + ' ' + item.last).toLowerCase();
+        const mobile = (item.mobile || '').toLowerCase();
+        return fullName.includes(searchText) || mobile.includes(searchText);
+    });
+
+    const totalPages = Math.ceil(filtered.length / state.pagination.limit);
     const start = (state.pagination.onb - 1) * state.pagination.limit;
-    const pageData = state.onboarding.slice(start, start + state.pagination.limit);
+    const pageData = filtered.slice(start, start + state.pagination.limit);
+
     const headers = ['<input type="checkbox" id="select-all-onb" onclick="toggleSelectAll(\'onb\', this)">', '#', 'First Name', 'Last Name', 'Mobile', 'Status', 'Assigned', 'Comments'];
     dom.tables.onb.head.innerHTML = `<tr>${headers.map(h => `<th>${h}</th>`).join('')}</tr>`;
     dom.tables.onb.body.innerHTML = pageData.map((c, i) => {
@@ -341,11 +343,12 @@ function renderOnboardingTable() {
         <td><select class="status-select ${c.status === 'Onboarding' ? 'active' : 'inactive'}" onchange="updateStatus('${c.id}', 'onboarding', this.value)"><option value="Onboarding" ${c.status==='Onboarding'?'selected':''}>Onboarding</option><option value="Completed" ${c.status==='Completed'?'selected':''}>Completed</option></select></td>
         <td>${c.assigned}</td><td onclick="inlineEdit('${c.id}', 'comments', 'onboarding', this)">${c.comments || '-'}</td></tr>`;
     }).join('');
+    
     renderPagination(dom.tables.onb, totalPages, 'onb');
 }
 
 /* ========================================================
-   9. UTILITIES (Filters, Pagination, Edits)
+   10. UTILITIES (Filters, Pagination, Edits)
    ======================================================== */
 function getFilteredData(data, filters, page) {
     const filtered = data.filter(item => {
@@ -398,7 +401,17 @@ window.toggleSelectAll = (type, mainCheckbox) => {
     const isChecked = mainCheckbox.checked;
     let currentData = [];
     if (type === 'cand') currentData = getFilteredData(state.candidates, state.filters, state.pagination.cand).filtered;
-    else { const start = (state.pagination.onb - 1) * state.pagination.limit; currentData = state.onboarding.slice(start, start + state.pagination.limit); }
+    else { 
+        // Logic for filtered onboarding selection
+        const searchText = state.onbFilters.text;
+        const filtered = state.onboarding.filter(item => {
+            const fullName = (item.first + ' ' + item.last).toLowerCase();
+            return fullName.includes(searchText);
+        });
+        const start = (state.pagination.onb - 1) * state.pagination.limit;
+        currentData = filtered.slice(start, start + state.pagination.limit);
+    }
+    
     currentData.forEach(item => { if (isChecked) state.selection[type].add(item.id); else state.selection[type].delete(item.id); });
     updateSelectButtons(type);
     if (type === 'cand') renderCandidateTable(); else renderOnboardingTable();
@@ -412,11 +425,13 @@ function updateSelectButtons(type) {
 }
 
 /* ========================================================
-   10. EVENT LISTENERS
+   11. EVENT LISTENERS
    ======================================================== */
 function setupEventListeners() {
     document.getElementById('btn-logout').addEventListener('click', () => auth.signOut());
     document.getElementById('theme-toggle').addEventListener('click', () => { document.body.classList.toggle('light-mode'); localStorage.setItem('np_theme', document.body.classList.contains('light-mode') ? 'light' : 'dark'); });
+    
+    // Navigation
     dom.navItems.forEach(btn => {
         btn.addEventListener('click', e => {
             dom.navItems.forEach(b => b.classList.remove('active')); e.currentTarget.classList.add('active');
@@ -424,12 +439,24 @@ function setupEventListeners() {
             const target = e.currentTarget.dataset.target; if(document.getElementById(target)) { document.getElementById(target).classList.add('active'); if(target === 'view-dashboard') updateDashboardStats(); }
         });
     });
+
     // SEED DATA
     document.getElementById('btn-seed-data').addEventListener('click', window.seedData);
     
     // FILTERS
     document.getElementById('search-input').addEventListener('input', e => { state.filters.text = e.target.value.toLowerCase(); state.pagination.cand = 1; renderCandidateTable(); });
     document.getElementById('hub-search-input').addEventListener('input', e => { state.hubFilters.text = e.target.value.toLowerCase(); state.pagination.hub = 1; renderHubTable(); });
+    
+    // NEW: Onboarding Search
+    const onbSearch = document.getElementById('onb-search-input');
+    if(onbSearch) {
+        onbSearch.addEventListener('input', e => {
+            state.onbFilters.text = e.target.value.toLowerCase();
+            state.pagination.onb = 1; 
+            renderOnboardingTable();
+        });
+    }
+
     document.getElementById('filter-recruiter').addEventListener('change', e => { state.filters.recruiter = e.target.value; state.pagination.cand = 1; renderCandidateTable(); });
     document.getElementById('filter-tech').addEventListener('change', e => { state.filters.tech = e.target.value; state.pagination.cand = 1; renderCandidateTable(); });
     document.querySelectorAll('.btn-toggle').forEach(btn => { btn.addEventListener('click', e => { document.querySelectorAll('.btn-toggle').forEach(b => b.classList.remove('active')); e.target.classList.add('active'); state.filters.status = e.target.dataset.status; state.pagination.cand = 1; renderCandidateTable(); }); });
@@ -437,17 +464,28 @@ function setupEventListeners() {
     const btnReset = document.getElementById('btn-reset-filters');
     if (btnReset) btnReset.addEventListener('click', () => { document.getElementById('search-input').value = ''; document.getElementById('filter-recruiter').value = ''; document.getElementById('filter-tech').value = ''; document.querySelectorAll('.btn-toggle').forEach(b => b.classList.remove('active')); document.querySelector('.btn-toggle[data-status=""]').classList.add('active'); state.filters = { text: '', recruiter: '', tech: '', status: '' }; state.pagination.cand = 1; renderCandidateTable(); showToast("Filters refreshed"); });
 
+    // INSERT CANDIDATE
     document.getElementById('btn-add-candidate').addEventListener('click', () => {
         state.filters = { text: '', recruiter: '', tech: '', status: '' }; state.pagination.cand = 1;
         document.getElementById('search-input').value = ''; document.getElementById('filter-recruiter').value = ''; document.getElementById('filter-tech').value = '';
         const newDoc = { first: '', last: '', mobile: '', wa: '', tech: '', recruiter: '', status: 'Active', assigned: new Date().toISOString().split('T')[0], comments: '', createdAt: Date.now(), submissionLog: [], screeningLog: [], interviewLog: [] };
-        db.collection('candidates').add(newDoc).then(() => { renderCandidateTable(); showToast("New row inserted"); });
+        db.collection('candidates').add(newDoc)
+            .then(() => { showToast("New row inserted"); })
+            .catch(err => { console.error(err); showToast("Error: " + err.message); });
     });
 
+    // INSERT ONBOARDING (FIXED)
     document.getElementById('btn-add-onboarding').addEventListener('click', () => {
+        // Clear filters so new row shows
+        const searchInput = document.getElementById('onb-search-input');
+        if(searchInput) searchInput.value = '';
+        state.onbFilters.text = '';
         state.pagination.onb = 1;
+
         const newDoc = { first: '', last: '', mobile: '', status: 'Onboarding', assigned: new Date().toISOString().split('T')[0], comments: '', createdAt: Date.now() };
-        db.collection('onboarding').add(newDoc).then(() => { renderOnboardingTable(); showToast("New row inserted"); });
+        db.collection('onboarding').add(newDoc)
+            .then(() => { showToast("New row inserted"); })
+            .catch(err => { console.error(err); showToast("Error: " + err.message); });
     });
 
     document.getElementById('btn-delete-selected').addEventListener('click', () => openDeleteModal('cand'));
@@ -455,8 +493,30 @@ function setupEventListeners() {
 }
 
 /* ========================================================
-   11. MODAL & EXPORT & CHART
+   12. EXPORT & CHART & SEED
    ======================================================== */
+window.seedData = () => {
+    const batch = db.batch();
+    const techList = state.metadata.techs;
+    const recList = state.metadata.recruiters;
+    for (let i = 1; i <= 25; i++) {
+        const newRef = db.collection('candidates').doc();
+        const data = {
+             first: `Candidate`, last: `${i}`,
+             mobile: `98765432${i < 10 ? '0'+i : i}`, wa: `98765432${i < 10 ? '0'+i : i}`,
+             tech: techList[Math.floor(Math.random() * techList.length)],
+             recruiter: recList[Math.floor(Math.random() * recList.length)],
+             status: i % 3 === 0 ? "Inactive" : "Active", 
+             linkedin: "https://linkedin.com", resume: "https://resume.com", track: "", 
+             assigned: new Date().toISOString().split('T')[0],
+             gmail: "mailto:test@gmail.com", comments: "Auto-generated demo data",
+             createdAt: Date.now() + i
+        };
+        batch.set(newRef, data);
+    }
+    batch.commit().then(() => { state.pagination.cand = 1; renderCandidateTable(); showToast("25 Demo Candidates Inserted"); }).catch(err => showToast("Error seeding data: " + err.message));
+};
+
 window.openModal = (id, type, name) => { state.modal.id = id; state.modal.type = type; dom.modal.self.style.display = 'flex'; dom.modal.title.innerText = `${name} - ${type.replace('Log','').toUpperCase()}`; dom.modal.input.value = new Date().toISOString().split('T')[0]; renderModalContent(); };
 window.closeActivityModal = () => { dom.modal.self.style.display = 'none'; };
 window.saveActivityLog = () => { const date = dom.modal.input.value; if(!date) return; const c = state.candidates.find(x => x.id === state.modal.id); let logs = c[state.modal.type] || []; logs.push(date); logs.sort().reverse(); db.collection('candidates').doc(state.modal.id).update({ [state.modal.type]: logs }); renderModalContent(); showToast("Activity Logged"); };
