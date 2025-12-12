@@ -402,7 +402,6 @@ window.toggleSelectAll = (type, mainCheckbox) => {
     let currentData = [];
     if (type === 'cand') currentData = getFilteredData(state.candidates, state.filters, state.pagination.cand).filtered;
     else { 
-        // Logic for filtered onboarding selection
         const searchText = state.onbFilters.text;
         const filtered = state.onboarding.filter(item => {
             const fullName = (item.first + ' ' + item.last).toLowerCase();
@@ -474,9 +473,8 @@ function setupEventListeners() {
             .catch(err => { console.error(err); showToast("Error: " + err.message); });
     });
 
-    // INSERT ONBOARDING (FIXED)
+    // INSERT ONBOARDING
     document.getElementById('btn-add-onboarding').addEventListener('click', () => {
-        // Clear filters so new row shows
         const searchInput = document.getElementById('onb-search-input');
         if(searchInput) searchInput.value = '';
         state.onbFilters.text = '';
@@ -528,9 +526,82 @@ window.executeDelete = () => { const type = state.pendingDelete.type; if (!type)
 
 window.exportData = () => { if (state.candidates.length === 0) return showToast("No data to export"); const headers = ["ID", "First Name", "Last Name", "Mobile", "Tech", "Recruiter", "Status", "Assigned Date", "Comments"]; const csvRows = [headers.join(",")]; state.candidates.forEach(c => { const row = [c.id, `"${c.first}"`, `"${c.last}"`, `"${c.mobile}"`, `"${c.tech}"`, `"${c.recruiter}"`, `"${c.status}"`, c.assigned, `"${(c.comments || '').replace(/"/g, '""')}"`]; csvRows.push(row.join(",")); }); const blob = new Blob([csvRows.join("\n")], { type: "text/csv" }); const url = window.URL.createObjectURL(blob); const a = document.createElement("a"); a.href = url; a.download = "nileprise_candidates.csv"; a.click(); showToast("Data Exported"); };
 
-function updateDashboardStats() { document.getElementById('stat-total').innerText = state.candidates.length; document.getElementById('stat-tech').innerText = new Set(state.candidates.map(c=>c.tech)).size; document.getElementById('stat-rec').innerText = state.metadata.recruiters.length; renderChart('chart-tech', getChartData('tech')); renderChart('chart-recruiter', getChartData('recruiter')); }
+/* ========================================================
+   UPDATED DASHBOARD LOGIC
+   ======================================================== */
+function updateDashboardStats() { 
+    // 1. Update Numbers
+    const total = state.candidates.length;
+    const techs = new Set(state.candidates.map(c=>c.tech)).size;
+    const recruiters = state.metadata.recruiters.length;
+
+    if(document.getElementById('stat-total')) document.getElementById('stat-total').innerText = total;
+    if(document.getElementById('stat-tech')) document.getElementById('stat-tech').innerText = techs;
+    if(document.getElementById('stat-rec')) document.getElementById('stat-rec').innerText = recruiters;
+    
+    if(document.getElementById('current-date-display')) {
+        document.getElementById('current-date-display').innerText = new Date().toLocaleDateString();
+    }
+
+    const techData = getChartData('tech');
+    const recData = getChartData('recruiter');
+
+    renderChart('chart-recruiter', recData, 'bar'); // Bar looks better for names
+    renderChart('chart-tech', techData, 'doughnut');
+}
+
 function getChartData(key) { const counts = {}; state.candidates.forEach(c => counts[c[key]] = (counts[c[key]] || 0) + 1); return { labels: Object.keys(counts), data: Object.values(counts) }; }
-let chartInstances = {}; function renderChart(id, data) { const ctx = document.getElementById(id).getContext('2d'); if(chartInstances[id]) chartInstances[id].destroy(); chartInstances[id] = new Chart(ctx, { type: 'doughnut', data: { labels: data.labels, datasets: [{ data: data.data, backgroundColor: ['#06b6d4', '#f59e0b', '#8b5cf6', '#22c55e', '#ef4444', '#ec4899', '#6366f1'], borderWidth: 0 }] }, options: { responsive: true, plugins: { legend: { position: 'right', labels: { color: '#94a3b8' } } } } }); }
+
+let chartInstances = {}; 
+
+function renderChart(id, data, type) { 
+    const ctx = document.getElementById(id);
+    if(!ctx) return; 
+
+    const context = ctx.getContext('2d');
+    if(chartInstances[id]) chartInstances[id].destroy(); 
+
+    const colors = ['#06b6d4', '#f59e0b', '#8b5cf6', '#22c55e', '#ef4444', '#ec4899', '#6366f1'];
+
+    chartInstances[id] = new Chart(context, { 
+        type: type, 
+        data: { 
+            labels: data.labels, 
+            datasets: [{ 
+                label: 'Candidates',
+                data: data.data, 
+                backgroundColor: colors, 
+                borderColor: 'rgba(0,0,0,0.1)',
+                borderWidth: 1,
+                borderRadius: 4, 
+                barThickness: 20
+            }] 
+        }, 
+        options: { 
+            responsive: true, 
+            maintainAspectRatio: false,
+            plugins: { 
+                legend: { 
+                    display: type === 'doughnut', 
+                    position: 'right', 
+                    labels: { color: '#94a3b8', font: { size: 11 } } 
+                } 
+            },
+            scales: {
+                y: {
+                    display: type === 'bar',
+                    grid: { color: 'rgba(255,255,255,0.05)' },
+                    ticks: { color: '#94a3b8' }
+                },
+                x: {
+                    display: type === 'bar',
+                    grid: { display: false },
+                    ticks: { color: '#94a3b8' }
+                }
+            }
+        } 
+    }); 
+}
 
 // --- START APP SAFELY ---
 document.addEventListener('DOMContentLoaded', init);
