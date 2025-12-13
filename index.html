@@ -125,10 +125,7 @@
             <div class="v-divider"></div>
             
             <div class="admin-pill">
-              <span id="display-username" style="display:none;"></span>
-              <img id="user-avatar" src="" style="display:none;">
-              <small id="display-role" style="display:none;"></small>
-              <div id="user-avatar-placeholder" style="display:none;"></div>
+              <span id="display-username" style="display:none; margin-right: 10px; font-size:0.9rem; font-weight:600;"></span>
               <button id="theme-toggle" class="btn-icon" style="margin-right: 10px;"><i class="fa-solid fa-sun"></i></button>
               <button id="btn-logout" class="logout-icon"><i class="fa-solid fa-power-off"></i></button>
             </div>
@@ -136,7 +133,6 @@
         </header>
 
         <div id="view-dashboard" class="content-view active">
-          
           <div class="dashboard-header-row">
             <div>
                 <h2 style="margin:0;">Executive Overview</h2>
@@ -180,7 +176,6 @@
             <div class="chart-container large-chart">
                 <div class="chart-top">
                     <h4>Recruiter Performance</h4>
-                    <button class="btn-icon-small"><i class="fa-solid fa-ellipsis"></i></button>
                 </div>
                 <div class="canvas-wrapper">
                     <canvas id="chart-recruiter"></canvas>
@@ -224,7 +219,17 @@
         <div id="view-hub" class="content-view">
           <div class="toolbar glass-panel">
             <div class="filters-group" style="justify-content: space-between; width:100%;">
-                <h3 style="margin:0; color:var(--text-muted); font-size: 0.9rem; text-transform: uppercase;">Activity Hub</h3>
+                <div class="filter-box" style="max-width: 200px;">
+                    <i class="fa-solid fa-user-tie"></i>
+                    <select id="hub-filter-recruiter">
+                        <option value="">All Recruiters</option>
+                        <option value="Asif">Asif</option>
+                        <option value="Ikram">Ikram</option>
+                        <option value="Manikanta">Manikanta</option>
+                        <option value="Mazher">Mazher</option>
+                        <option value="Shoeb">Shoeb</option>
+                    </select>
+                </div>
                 <div class="search-box"><i class="fa-solid fa-search"></i><input type="text" id="hub-search-input" placeholder="Search Candidate..."></div>
             </div>
           </div>
@@ -271,7 +276,7 @@
                   <img id="profile-main-img" src="" class="avatar-img" style="display:none;">
                   <div id="profile-main-icon" class="avatar-placeholder"><i class="fa-solid fa-user"></i></div>
                 </div>
-                <div class="profile-names"><h2 id="prof-name-display">User Name</h2><p id="prof-role-display" class="role">Staff Member</p></div>
+                <div class="profile-names"><h2 id="prof-name-display">Loading...</h2><p id="prof-role-display" class="role">Staff Member</p></div>
               </div>
             </div>
             <div class="profile-body">
