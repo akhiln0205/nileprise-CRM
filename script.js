@@ -43,8 +43,7 @@ const state = {
     filters: { text: '', recruiter: '', tech: '', status: '' },
     hubFilters: { text: '', recruiter: '' },
     onbFilters: { text: '' }, 
-    // PAGINATION
-    pagination: { cand: 1, hub: 1, onb: 1, limit: 10 },
+    // SELECTION (No more pagination logic needed for display)
     selection: { cand: new Set(), onb: new Set() },
     modal: { id: null, type: null },
     pendingDelete: { type: null },
@@ -70,9 +69,9 @@ const dom = {
     },
     headerUpdated: document.getElementById('header-updated'),
     tables: {
-        cand: { body: document.getElementById('table-body'), head: document.getElementById('table-head'), page: document.getElementById('page-info'), ctrls: document.getElementById('pagination-controls') },
-        hub: { body: document.getElementById('hub-table-body'), head: document.getElementById('hub-table-head'), page: document.getElementById('hub-page-info'), ctrls: document.getElementById('hub-pagination-controls') },
-        onb: { body: document.getElementById('onboarding-table-body'), head: document.getElementById('onboarding-table-head'), page: document.getElementById('onboarding-page-info'), ctrls: document.getElementById('onboarding-pagination-controls') }
+        cand: { body: document.getElementById('table-body'), head: document.getElementById('table-head') },
+        hub: { body: document.getElementById('hub-table-body'), head: document.getElementById('hub-table-head') },
+        onb: { body: document.getElementById('onboarding-table-body'), head: document.getElementById('onboarding-table-head') }
     },
     modal: {
         self: document.getElementById('activity-modal'),
@@ -207,7 +206,8 @@ function refreshProfileData() {
    7. REAL-TIME DATA
    ======================================================== */
 function initRealtimeListeners() {
-    db.collection('candidates').orderBy('createdAt', 'desc').limit(50).onSnapshot(snap => {
+    // Infinite Scroll: Listen to ALL changes, sorted by date
+    db.collection('candidates').orderBy('createdAt', 'desc').onSnapshot(snap => {
         state.candidates = [];
         snap.forEach(doc => state.candidates.push({ id: doc.id, ...doc.data() }));
         renderCandidateTable();
@@ -215,7 +215,7 @@ function initRealtimeListeners() {
         updateDashboardStats();
         if(dom.headerUpdated) dom.headerUpdated.innerText = 'Synced';
     });
-    db.collection('onboarding').orderBy('createdAt', 'desc').limit(50).onSnapshot(snap => {
+    db.collection('onboarding').orderBy('createdAt', 'desc').onSnapshot(snap => {
         state.onboarding = [];
         snap.forEach(doc => state.onboarding.push({ id: doc.id, ...doc.data() }));
         renderOnboardingTable();
@@ -227,13 +227,23 @@ function initRealtimeListeners() {
    ======================================================== */
 // --- CANDIDATES TABLE ---
 function renderCandidateTable() {
-    const { filtered } = getFilteredData(state.candidates, state.filters, state.pagination.cand);
+    const filtered = getFilteredData(state.candidates, state.filters);
     const headers = ['<input type="checkbox" id="select-all-cand" onclick="toggleSelectAll(\'cand\', this)">', '#', 'First Name', 'Last Name', 'Mobile', 'WhatsApp', 'Tech', 'Recruiter', 'Status', 'Assigned', 'Gmail', 'LinkedIn', 'Resume', 'Track', 'Comments'];
     dom.tables.cand.head.innerHTML = `<tr>${headers.map(h => `<th>${h}</th>`).join('')}</tr>`;
+    
+    // UPDATE COUNT
+    const footerCount = document.getElementById('cand-footer-count');
+    if(footerCount) footerCount.innerText = `Showing ${filtered.length} records`;
+
     dom.tables.cand.body.innerHTML = filtered.map((c, i) => {
-        const idx = (state.pagination.cand - 1) * state.pagination.limit + i + 1;
+        const idx = i + 1;
         const isSel = state.selection.cand.has(c.id) ? 'checked' : '';
         const rowClass = state.selection.cand.has(c.id) ? 'selected-row' : '';
+        
+        let statusStyle = "";
+        if(c.status === 'Active') statusStyle = 'active';
+        else statusStyle = 'inactive';
+        
         return `
         <tr class="${rowClass}">
             <td><input type="checkbox" ${isSel} onchange="toggleSelect('${c.id}', 'cand')"></td>
@@ -244,13 +254,22 @@ function renderCandidateTable() {
             <td onclick="inlineEdit('${c.id}', 'wa', 'candidates', this)">${c.wa}</td>
             <td onclick="inlineEdit('${c.id}', 'tech', 'candidates', this)">${c.tech}</td>
             <td onclick="editRecruiter('${c.id}', 'candidates', this)">${c.recruiter}</td>
-            <td><select class="status-select ${c.status.toLowerCase()}" onchange="updateStatus('${c.id}', 'candidates', this.value)"><option value="Active" ${c.status==='Active'?'selected':''}>Active</option><option value="Inactive" ${c.status==='Inactive'?'selected':''}>Inactive</option></select></td>
-            <td>${c.assigned}</td>
-            <td>-</td><td>-</td><td>-</td><td>-</td>
+            <td>
+                <select class="status-select ${statusStyle}" onchange="updateStatus('${c.id}', 'candidates', this.value)">
+                    <option value="Active" ${c.status==='Active'?'selected':''}>Active</option>
+                    <option value="Inactive" ${c.status==='Inactive'?'selected':''}>Inactive</option>
+                </select>
+            </td>
+            <td><input type="date" class="date-input-modern" value="${c.assigned}" onchange="inlineDateEdit('${c.id}', 'assigned', 'candidates', this.value)"></td>
+            
+            <td class="url-cell" onclick="inlineUrlEdit('${c.id}', 'gmail', 'candidates', this)">${c.gmail ? 'Gmail' : ''}</td>
+            <td class="url-cell" onclick="inlineUrlEdit('${c.id}', 'linkedin', 'candidates', this)">${c.linkedin ? 'LinkedIn' : ''}</td>
+            <td class="url-cell" onclick="inlineUrlEdit('${c.id}', 'resume', 'candidates', this)">${c.resume ? 'Resume' : ''}</td>
+            <td class="url-cell" onclick="inlineUrlEdit('${c.id}', 'track', 'candidates', this)">${c.track ? 'Tracker' : ''}</td>
+            
             <td onclick="inlineEdit('${c.id}', 'comments', 'candidates', this)">${c.comments || '-'}</td>
         </tr>`;
     }).join('');
-    renderPagination(dom.tables.cand, Math.ceil(filtered.length / state.pagination.limit), 'cand');
 }
 
 // --- HUB TABLE ---
@@ -261,14 +280,16 @@ function renderHubTable() {
         return matchesText && matchesRec;
     });
 
-    const totalPages = Math.ceil(filtered.length / state.pagination.limit);
-    const start = (state.pagination.hub - 1) * state.pagination.limit;
-    const pageData = filtered.slice(start, start + state.pagination.limit);
     const headers = ['#', 'Name', 'Recruiter', 'Tech', 'Submissions', 'Screenings', 'Interviews', 'Last Activity'];
     
     dom.tables.hub.head.innerHTML = `<tr>${headers.map(h => `<th>${h}</th>`).join('')}</tr>`;
-    dom.tables.hub.body.innerHTML = pageData.map((c, i) => {
-        const idx = start + i + 1;
+    
+    // UPDATE COUNT
+    const footerCount = document.getElementById('hub-footer-count');
+    if(footerCount) footerCount.innerText = `Showing ${filtered.length} records`;
+
+    dom.tables.hub.body.innerHTML = filtered.map((c, i) => {
+        const idx = i + 1;
         let lastAct = '-'; 
         if(c.interviewLog && c.interviewLog.length) lastAct = c.interviewLog.sort().reverse()[0];
         return `<tr><td>${idx}</td><td>${c.first} ${c.last}</td><td>${c.recruiter || '-'}</td><td style="color:var(--primary);">${c.tech}</td>
@@ -277,7 +298,6 @@ function renderHubTable() {
             <td class="text-cyan" style="font-weight:bold; cursor:pointer" onclick="openModal('${c.id}', 'interviewLog', '${c.first}')">${(c.interviewLog||[]).length}</td>
             <td>${lastAct}</td></tr>`;
     }).join('');
-    renderPagination(dom.tables.hub, totalPages, 'hub');
 }
 
 // --- ONBOARDING TABLE ---
@@ -289,27 +309,28 @@ function renderOnboardingTable() {
         return fullName.includes(searchText) || mobile.includes(searchText);
     });
 
-    const totalPages = Math.ceil(filtered.length / state.pagination.limit);
-    const start = (state.pagination.onb - 1) * state.pagination.limit;
-    const pageData = filtered.slice(start, start + state.pagination.limit);
-
     const headers = ['<input type="checkbox" id="select-all-onb" onclick="toggleSelectAll(\'onb\', this)">', '#', 'First Name', 'Last Name', 'Recruiter', 'Mobile', 'Status', 'Assigned', 'Comments'];
     dom.tables.onb.head.innerHTML = `<tr>${headers.map(h => `<th>${h}</th>`).join('')}</tr>`;
-    dom.tables.onb.body.innerHTML = pageData.map((c, i) => {
-        const idx = start + i + 1;
+
+    // UPDATE COUNT
+    const footerCount = document.getElementById('onb-footer-count');
+    if(footerCount) footerCount.innerText = `Showing ${filtered.length} records`;
+
+    dom.tables.onb.body.innerHTML = filtered.map((c, i) => {
+        const idx = i + 1;
         const isSel = state.selection.onb.has(c.id) ? 'checked' : '';
         return `<tr><td><input type="checkbox" ${isSel} onchange="toggleSelect('${c.id}', 'onb')"></td><td>${idx}</td>
         <td onclick="inlineEdit('${c.id}', 'first', 'onboarding', this)">${c.first}</td><td onclick="inlineEdit('${c.id}', 'last', 'onboarding', this)">${c.last}</td>
         <td onclick="editRecruiter('${c.id}', 'onboarding', this)">${c.recruiter || '-'}</td>
         <td onclick="inlineEdit('${c.id}', 'mobile', 'onboarding', this)">${c.mobile}</td>
         <td><select class="status-select ${c.status === 'Onboarding' ? 'active' : 'inactive'}" onchange="updateStatus('${c.id}', 'onboarding', this.value)"><option value="Onboarding" ${c.status==='Onboarding'?'selected':''}>Onboarding</option><option value="Completed" ${c.status==='Completed'?'selected':''}>Completed</option></select></td>
-        <td>${c.assigned}</td><td onclick="inlineEdit('${c.id}', 'comments', 'onboarding', this)">${c.comments || '-'}</td></tr>`;
+        <td><input type="date" class="date-input-modern" value="${c.assigned}" onchange="inlineDateEdit('${c.id}', 'assigned', 'onboarding', this.value)"></td>
+        <td onclick="inlineEdit('${c.id}', 'comments', 'onboarding', this)">${c.comments || '-'}</td></tr>`;
     }).join('');
-    renderPagination(dom.tables.onb, totalPages, 'onb');
 }
 
 /* ========================================================
-   9. UTILITIES
+   9. UTILITIES (Edit, Filter, Date, URL)
    ======================================================== */
 function renderDropdowns() {
     const rSelect = document.getElementById('filter-recruiter');
@@ -318,26 +339,15 @@ function renderDropdowns() {
     if (tSelect && state.metadata.techs) tSelect.innerHTML = `<option value="">All Tech</option>` + state.metadata.techs.map(t => `<option value="${t}">${t}</option>`).join('');
 }
 
-function getFilteredData(data, filters, page) {
-    const filtered = data.filter(item => {
+function getFilteredData(data, filters) {
+    return data.filter(item => {
         const matchesText = (item.first + ' ' + item.last + ' ' + (item.tech||'')).toLowerCase().includes(filters.text);
         const matchesRec = filters.recruiter ? item.recruiter === filters.recruiter : true;
         const matchesTech = filters.tech ? item.tech === filters.tech : true;
         const matchesStatus = filters.status ? item.status === filters.status : true;
         return matchesText && matchesRec && matchesTech && matchesStatus;
     });
-    const start = (page - 1) * state.pagination.limit;
-    return { filtered: filtered.slice(start, start + state.pagination.limit), totalPages: Math.ceil(filtered.length / state.pagination.limit) };
 }
-
-function renderPagination(tableDom, total, type) {
-    if(tableDom.page) tableDom.page.innerText = `Page ${state.pagination[type]} of ${total || 1}`;
-    let html = '';
-    for(let i=1; i<=total; i++) { html += `<button class="${i === state.pagination[type] ? 'active' : ''}" onclick="setPage(${i}, '${type}')">${i}</button>`; }
-    if(tableDom.ctrls) tableDom.ctrls.innerHTML = html;
-}
-
-window.setPage = (p, type) => { state.pagination[type] = p; if(type==='cand') renderCandidateTable(); if(type==='hub') renderHubTable(); if(type==='onb') renderOnboardingTable(); };
 
 function inlineEdit(id, field, collection, el) {
     if(el.querySelector('input')) return;
@@ -347,6 +357,33 @@ function inlineEdit(id, field, collection, el) {
     const save = () => { const newVal = input.value.trim(); el.innerHTML = newVal || '-'; el.classList.remove('editing-cell'); if (newVal !== currentText) db.collection(collection).doc(id).update({ [field]: newVal }); };
     input.addEventListener('blur', save); input.addEventListener('keydown', (e) => { if (e.key === 'Enter') input.blur(); });
     el.appendChild(input); input.focus();
+}
+
+function inlineUrlEdit(id, field, collection, el) {
+    if(el.querySelector('input')) return;
+    
+    el.innerHTML = ''; el.classList.add('editing-cell');
+    const input = document.createElement('input'); 
+    input.type = 'url'; 
+    input.placeholder = 'Paste Link Here...';
+    input.className = 'inline-input-active';
+    
+    const save = () => { 
+        let newVal = input.value.trim(); 
+        if(newVal && !newVal.startsWith('http')) newVal = 'https://' + newVal; 
+        el.innerHTML = newVal ? 'Saved' : '';
+        el.classList.remove('editing-cell'); 
+        db.collection(collection).doc(id).update({ [field]: newVal }); 
+    };
+    
+    input.addEventListener('blur', save); 
+    input.addEventListener('keydown', (e) => { if (e.key === 'Enter') input.blur(); });
+    el.appendChild(input); 
+    input.focus();
+}
+
+function inlineDateEdit(id, field, collection, val) {
+    db.collection(collection).doc(id).update({ [field]: val });
 }
 
 function editRecruiter(id, collection, el) {
@@ -368,12 +405,10 @@ window.toggleSelect = (id, type) => {
 window.toggleSelectAll = (type, mainCheckbox) => {
     const isChecked = mainCheckbox.checked;
     let currentData = [];
-    if (type === 'cand') currentData = getFilteredData(state.candidates, state.filters, state.pagination.cand).filtered;
+    if (type === 'cand') currentData = getFilteredData(state.candidates, state.filters);
     else { 
         const searchText = state.onbFilters.text;
-        const filtered = state.onboarding.filter(item => (item.first + ' ' + item.last).toLowerCase().includes(searchText));
-        const start = (state.pagination.onb - 1) * state.pagination.limit;
-        currentData = filtered.slice(start, start + state.pagination.limit);
+        currentData = state.onboarding.filter(item => (item.first + ' ' + item.last).toLowerCase().includes(searchText));
     }
     currentData.forEach(item => { if (isChecked) state.selection[type].add(item.id); else state.selection[type].delete(item.id); });
     updateSelectButtons(type);
@@ -405,20 +440,20 @@ function setupEventListeners() {
     document.getElementById('btn-seed-data').addEventListener('click', window.seedData);
     
     // Candidate Filters
-    document.getElementById('search-input').addEventListener('input', e => { state.filters.text = e.target.value.toLowerCase(); state.pagination.cand = 1; renderCandidateTable(); });
-    document.getElementById('filter-recruiter').addEventListener('change', e => { state.filters.recruiter = e.target.value; state.pagination.cand = 1; renderCandidateTable(); });
-    document.getElementById('filter-tech').addEventListener('change', e => { state.filters.tech = e.target.value; state.pagination.cand = 1; renderCandidateTable(); });
-    document.querySelectorAll('.btn-toggle').forEach(btn => { btn.addEventListener('click', e => { document.querySelectorAll('.btn-toggle').forEach(b => b.classList.remove('active')); e.target.classList.add('active'); state.filters.status = e.target.dataset.status; state.pagination.cand = 1; renderCandidateTable(); }); });
-    document.getElementById('btn-reset-filters').addEventListener('click', () => { document.getElementById('search-input').value = ''; document.getElementById('filter-recruiter').value = ''; document.getElementById('filter-tech').value = ''; document.querySelectorAll('.btn-toggle').forEach(b => b.classList.remove('active')); document.querySelector('.btn-toggle[data-status=""]').classList.add('active'); state.filters = { text: '', recruiter: '', tech: '', status: '' }; state.pagination.cand = 1; renderCandidateTable(); showToast("Filters refreshed"); });
+    document.getElementById('search-input').addEventListener('input', e => { state.filters.text = e.target.value.toLowerCase(); renderCandidateTable(); });
+    document.getElementById('filter-recruiter').addEventListener('change', e => { state.filters.recruiter = e.target.value; renderCandidateTable(); });
+    document.getElementById('filter-tech').addEventListener('change', e => { state.filters.tech = e.target.value; renderCandidateTable(); });
+    document.querySelectorAll('.btn-toggle').forEach(btn => { btn.addEventListener('click', e => { document.querySelectorAll('.btn-toggle').forEach(b => b.classList.remove('active')); e.target.classList.add('active'); state.filters.status = e.target.dataset.status; renderCandidateTable(); }); });
+    document.getElementById('btn-reset-filters').addEventListener('click', () => { document.getElementById('search-input').value = ''; document.getElementById('filter-recruiter').value = ''; document.getElementById('filter-tech').value = ''; document.querySelectorAll('.btn-toggle').forEach(b => b.classList.remove('active')); document.querySelector('.btn-toggle[data-status=""]').classList.add('active'); state.filters = { text: '', recruiter: '', tech: '', status: '' }; renderCandidateTable(); showToast("Filters refreshed"); });
 
     // Hub Filter (New)
-    document.getElementById('hub-search-input').addEventListener('input', e => { state.hubFilters.text = e.target.value.toLowerCase(); state.pagination.hub = 1; renderHubTable(); });
+    document.getElementById('hub-search-input').addEventListener('input', e => { state.hubFilters.text = e.target.value.toLowerCase(); renderHubTable(); });
     const hubRecSelect = document.getElementById('hub-filter-recruiter');
-    if(hubRecSelect) { hubRecSelect.addEventListener('change', (e) => { state.hubFilters.recruiter = e.target.value; state.pagination.hub = 1; renderHubTable(); }); }
+    if(hubRecSelect) { hubRecSelect.addEventListener('change', (e) => { state.hubFilters.recruiter = e.target.value; renderHubTable(); }); }
 
     // Onboarding Filter
     const onbSearch = document.getElementById('onb-search-input');
-    if(onbSearch) { onbSearch.addEventListener('input', e => { state.onbFilters.text = e.target.value.toLowerCase(); state.pagination.onb = 1; renderOnboardingTable(); }); }
+    if(onbSearch) { onbSearch.addEventListener('input', e => { state.onbFilters.text = e.target.value.toLowerCase(); renderOnboardingTable(); }); }
 
     // Add Buttons
     document.getElementById('btn-add-candidate').addEventListener('click', () => { db.collection('candidates').add({ first: '', last: '', mobile: '', wa: '', tech: '', recruiter: '', status: 'Active', assigned: new Date().toISOString().split('T')[0], comments: '', createdAt: Date.now(), submissionLog: [], screeningLog: [], interviewLog: [] }).then(() => showToast("Inserted")); });
@@ -440,7 +475,7 @@ window.seedData = () => {
         const newRef = db.collection('candidates').doc();
         batch.set(newRef, { first: `Candidate`, last: `${i}`, mobile: `98765432${i < 10 ? '0'+i : i}`, wa: `98765432${i < 10 ? '0'+i : i}`, tech: techList[Math.floor(Math.random() * techList.length)], recruiter: recList[Math.floor(Math.random() * recList.length)], status: i % 3 === 0 ? "Inactive" : "Active", assigned: new Date().toISOString().split('T')[0], comments: "Auto-generated demo data", createdAt: Date.now() + i });
     }
-    batch.commit().then(() => { state.pagination.cand = 1; renderCandidateTable(); showToast("25 Demo Candidates Inserted"); });
+    batch.commit().then(() => { renderCandidateTable(); showToast("25 Demo Candidates Inserted"); });
 };
 
 window.openModal = (id, type, name) => { state.modal.id = id; state.modal.type = type; dom.modal.self.style.display = 'flex'; dom.modal.title.innerText = `${name} - ${type.replace('Log','').toUpperCase()}`; dom.modal.input.value = new Date().toISOString().split('T')[0]; renderModalContent(); };
