@@ -16,7 +16,7 @@ const db = firebase.firestore();
 const auth = firebase.auth();
 
 /* ========================================================
-   2. ACCESS CONTROL LIST (Whitelist)
+   2. ACCESS CONTROL LIST
    ======================================================== */
 const ALLOWED_USERS = {
     'ali@nileprise.com': { name: 'Asif', role: 'Employee' },
@@ -41,7 +41,7 @@ const state = {
     onboarding: [],
     // FILTERS
     filters: { text: '', recruiter: '', tech: '', status: '' },
-    hubFilters: { text: '' },
+    hubFilters: { text: '', recruiter: '' },
     onbFilters: { text: '' }, 
     // PAGINATION
     pagination: { cand: 1, hub: 1, onb: 1, limit: 10 },
@@ -65,16 +65,8 @@ const dom = {
         candidates: document.getElementById('view-candidates'),
         hub: document.getElementById('view-hub'),
         onboarding: document.getElementById('view-onboarding'),
-        settings: document.getElementById('view-settings')
-    },
-    profile: {
-        img: document.getElementById('user-avatar'),
-        profileUser: document.getElementById('display-username'),
-        profileNameDisplay: document.getElementById('prof-name-display'),
-        profileEmail: document.getElementById('prof-email'),
-        profileUsername: document.getElementById('prof-username'),
-        role: document.getElementById('display-role'),
-        profRole: document.getElementById('prof-role-display')
+        settings: document.getElementById('view-settings'),
+        profile: document.getElementById('view-profile')
     },
     headerUpdated: document.getElementById('header-updated'),
     tables: {
@@ -94,18 +86,39 @@ const dom = {
 };
 
 /* ========================================================
-   5. HELPER FUNCTIONS
+   5. INIT & AUTH
    ======================================================== */
-function renderDropdowns() {
-    const rSelect = document.getElementById('filter-recruiter');
-    if (rSelect && state.metadata.recruiters) {
-        rSelect.innerHTML = `<option value="">All Recruiters</option>` + 
-            state.metadata.recruiters.map(r => `<option value="${r}">${r}</option>`).join('');
+function init() {
+    try {
+        console.log("App Initializing...");
+        setupEventListeners();
+        renderDropdowns();
+        
+        auth.onAuthStateChanged(user => {
+            if (user) {
+                if (!user.emailVerified) { 
+                    document.getElementById('verify-email-display').innerText = user.email; 
+                    switchScreen('verify'); 
+                    return; 
+                }
+                state.user = user;
+                const email = user.email.toLowerCase();
+                const knownUser = ALLOWED_USERS[email];
+                state.userRole = knownUser ? knownUser.role : 'Admin';
+                
+                updateUserProfile(user, knownUser);
+                switchScreen('app');
+                initRealtimeListeners();
+            } else {
+                switchScreen('auth');
+            }
+        });
+    } catch (err) {
+        console.error("Init Error:", err);
+        switchScreen('auth'); 
     }
-    const tSelect = document.getElementById('filter-tech');
-    if (tSelect && state.metadata.techs) {
-        tSelect.innerHTML = `<option value="">All Tech</option>` + 
-            state.metadata.techs.map(t => `<option value="${t}">${t}</option>`).join('');
+    if(localStorage.getItem('np_theme') === 'light') {
+        document.body.classList.add('light-mode');
     }
 }
 
@@ -131,135 +144,74 @@ function cleanError(msg) {
 }
 
 /* ========================================================
-   6. AUTH HANDLERS
+   6. PROFILE & NAVIGATION LOGIC
    ======================================================== */
-window.handleLogin = () => {
-    const btn = document.getElementById('btn-login-action');
-    const email = document.getElementById('login-email').value.trim().toLowerCase();
-    const pass = document.getElementById('login-pass').value;
-    
-    if(!email || !pass) return showToast("Please fill all fields");
-    if (btn) { btn.disabled = true; btn.innerText = "Verifying..."; }
-    
-    auth.signInWithEmailAndPassword(email, pass)
-        .then(() => { if(btn) { btn.disabled = false; btn.innerText = "Login"; } })
-        .catch(err => { 
-            if(btn) { btn.disabled = false; btn.innerText = "Login"; }
-            showToast(cleanError(err.message)); 
-        });
-};
+// NAVIGATION
+dom.navItems.forEach(btn => {
+    btn.addEventListener('click', (e) => {
+        dom.navItems.forEach(b => b.classList.remove('active'));
+        const clickedBtn = e.target.closest('.nav-item');
+        clickedBtn.classList.add('active');
 
-window.handleSignup = () => {
-    const btn = document.getElementById('btn-signup-action');
-    const name = document.getElementById('reg-name').value;
-    const email = document.getElementById('reg-email').value.trim().toLowerCase();
-    const pass = document.getElementById('reg-pass').value;
-    
-    if(!name || !email || !pass) return showToast("All fields are required");
-    if(btn) { btn.disabled = true; btn.innerText = "Registering..."; }
-    
-    auth.createUserWithEmailAndPassword(email, pass)
-        .then((result) => result.user.updateProfile({ displayName: name }).then(() => result.user))
-        .then((user) => {
-            user.sendEmailVerification(); 
-            showToast("Success! Please check your email."); 
-            setTimeout(() => { switchAuth('login'); }, 1500);
-            if(btn) { btn.disabled = false; btn.innerText = "Register"; }
-        })
-        .catch(err => {
-            if(btn) { btn.disabled = false; btn.innerText = "Register"; }
-            showToast(cleanError(err.message));
-        });
-};
-
-window.handleReset = () => {
-    const email = document.getElementById('reset-email').value;
-    auth.sendPasswordResetEmail(email)
-        .then(() => { showToast("Reset link sent!"); switchAuth('login'); })
-        .catch(err => showToast(cleanError(err.message)));
-};
-
-window.checkVerificationStatus = () => { 
-    const user = firebase.auth().currentUser; 
-    if (user) user.reload().then(() => { if (user.emailVerified) location.reload(); }); 
-};
-
-window.resendVerificationEmail = () => { 
-    const user = firebase.auth().currentUser; 
-    if (user) user.sendEmailVerification().then(() => showToast("Link sent!")); 
-};
-
-/* ========================================================
-   7. INITIALIZATION
-   ======================================================== */
-function init() {
-    try {
-        console.log("App Initializing...");
-        setupEventListeners();
-        renderDropdowns();
+        Object.values(dom.views).forEach(view => view.classList.remove('active'));
+        const targetId = clickedBtn.getAttribute('data-target');
+        const targetView = document.getElementById(targetId);
         
-        auth.onAuthStateChanged(user => {
-            if (user) {
-                console.log("User detected:", user.email);
-                
-                // --- EMAIL VERIFICATION CHECK ---
-                if (!user.emailVerified) { 
-                    document.getElementById('verify-email-display').innerText = user.email; 
-                    switchScreen('verify'); 
-                    return; 
-                }
-
-                state.user = user;
-                const email = user.email.toLowerCase();
-                const knownUser = ALLOWED_USERS[email];
-                state.userRole = knownUser ? knownUser.role : 'Admin';
-                
-                updateUserProfile(user, knownUser);
-                switchScreen('app');
-                initRealtimeListeners();
-            } else {
-                switchScreen('auth');
-            }
-        });
-    } catch (err) {
-        console.error("Init Error:", err);
-        switchScreen('auth'); 
-    }
-    if(localStorage.getItem('np_theme') === 'light') {
-        document.body.classList.add('light-mode');
-    }
-}
+        if (targetView) {
+            targetView.classList.add('active');
+            if (targetId === 'view-dashboard') updateDashboardStats();
+            if (targetId === 'view-profile') refreshProfileData();
+        }
+    });
+});
 
 function updateUserProfile(user, userData) {
-    if(!user) return;
-    const displayName = userData ? userData.name : (user.displayName || 'User');
-    
-    if(dom.profile.profileUser) dom.profile.profileUser.innerText = displayName; 
-    if(dom.profile.profileNameDisplay) dom.profile.profileNameDisplay.innerText = displayName;
-    if(dom.profile.role) dom.profile.role.innerText = userData ? userData.role : 'Staff';
-    if(dom.profile.profRole) dom.profile.profRole.innerText = userData ? userData.role : 'Staff';
-    if(dom.profile.profileEmail) dom.profile.profileEmail.value = user.email;
-    if(dom.profile.profileUsername) dom.profile.profileUsername.value = displayName.replace(/\s+/g, '').toLowerCase(); 
+    if (!user) return;
+    const displayName = userData ? userData.name : (user.displayName || 'Staff Member');
+    const role = userData ? userData.role : 'Viewer';
 
-    const placeholder = document.getElementById('user-avatar-placeholder');
-    if(user.photoURL && dom.profile.img) {
-        dom.profile.img.src = user.photoURL; 
-        dom.profile.img.style.display = 'block'; 
-        if(placeholder) placeholder.style.display = 'none';
-    } else {
-        if(dom.profile.img) dom.profile.img.style.display = 'none'; 
-        if(placeholder) placeholder.style.display = 'flex';
+    // Header Pill
+    const headerUser = document.getElementById('display-username');
+    if (headerUser) { headerUser.innerText = displayName; headerUser.style.display = 'block'; }
+
+    // Profile Page Elements
+    const nameDisplay = document.getElementById('prof-name-display');
+    const roleDisplay = document.getElementById('prof-role-display');
+    const emailInput = document.getElementById('prof-email');
+    const userInput = document.getElementById('prof-username');
+    const loginInput = document.getElementById('prof-last-login');
+
+    if (nameDisplay) nameDisplay.innerText = displayName;
+    if (roleDisplay) roleDisplay.innerText = role;
+    if (emailInput) emailInput.value = user.email;
+    if (userInput) userInput.value = user.email.split('@')[0].toUpperCase();
+    if (loginInput && user.metadata) loginInput.value = new Date(user.metadata.lastSignInTime).toLocaleString();
+
+    // Avatar
+    const avatarImg = document.getElementById('profile-main-img');
+    const avatarPlaceholder = document.getElementById('profile-main-icon');
+    if (user.photoURL && avatarImg) {
+        avatarImg.src = user.photoURL;
+        avatarImg.style.display = 'block';
+        if(avatarPlaceholder) avatarPlaceholder.style.display = 'none';
     }
 }
 
+function refreshProfileData() {
+    const user = firebase.auth().currentUser;
+    const knownUser = ALLOWED_USERS[user?.email];
+    if(user) updateUserProfile(user, knownUser);
+}
+
 /* ========================================================
-   8. REAL-TIME DATA
+   7. REAL-TIME DATA
    ======================================================== */
 function initRealtimeListeners() {
     db.collection('candidates').orderBy('createdAt', 'desc').limit(50).onSnapshot(snap => {
         state.candidates = [];
         snap.forEach(doc => state.candidates.push({ id: doc.id, ...doc.data() }));
-        refreshAllTables();
+        renderCandidateTable();
+        renderHubTable();
         updateDashboardStats();
         if(dom.headerUpdated) dom.headerUpdated.innerText = 'Synced';
     });
@@ -270,11 +222,10 @@ function initRealtimeListeners() {
     });
 }
 
-function refreshAllTables() { renderCandidateTable(); renderHubTable(); }
-
 /* ========================================================
-   9. RENDERERS
+   8. RENDERERS
    ======================================================== */
+// --- CANDIDATES TABLE ---
 function renderCandidateTable() {
     const { filtered } = getFilteredData(state.candidates, state.filters, state.pagination.cand);
     const headers = ['<input type="checkbox" id="select-all-cand" onclick="toggleSelectAll(\'cand\', this)">', '#', 'First Name', 'Last Name', 'Mobile', 'WhatsApp', 'Tech', 'Recruiter', 'Status', 'Assigned', 'Gmail', 'LinkedIn', 'Resume', 'Track', 'Comments'];
@@ -302,27 +253,35 @@ function renderCandidateTable() {
     renderPagination(dom.tables.cand, Math.ceil(filtered.length / state.pagination.limit), 'cand');
 }
 
+// --- HUB TABLE ---
 function renderHubTable() {
-    const filtered = state.candidates.filter(c => (c.first + ' ' + c.last).toLowerCase().includes(state.hubFilters.text));
+    const filtered = state.candidates.filter(c => {
+        const matchesText = (c.first + ' ' + c.last).toLowerCase().includes(state.hubFilters.text);
+        const matchesRec = state.hubFilters.recruiter ? c.recruiter === state.hubFilters.recruiter : true;
+        return matchesText && matchesRec;
+    });
+
     const totalPages = Math.ceil(filtered.length / state.pagination.limit);
     const start = (state.pagination.hub - 1) * state.pagination.limit;
     const pageData = filtered.slice(start, start + state.pagination.limit);
-    const headers = ['#', 'Name', 'Tech', 'Submissions', 'Screenings', 'Interviews', 'Last Activity'];
+    const headers = ['#', 'Name', 'Recruiter', 'Tech', 'Submissions', 'Screenings', 'Interviews', 'Last Activity'];
+    
     dom.tables.hub.head.innerHTML = `<tr>${headers.map(h => `<th>${h}</th>`).join('')}</tr>`;
     dom.tables.hub.body.innerHTML = pageData.map((c, i) => {
         const idx = start + i + 1;
-        let lastAct = '-'; if(c.interviewLog && c.interviewLog.length) lastAct = c.interviewLog.sort().reverse()[0];
-        return `<tr><td>${idx}</td><td>${c.first} ${c.last}</td><td>${c.tech}</td>
+        let lastAct = '-'; 
+        if(c.interviewLog && c.interviewLog.length) lastAct = c.interviewLog.sort().reverse()[0];
+        return `<tr><td>${idx}</td><td>${c.first} ${c.last}</td><td>${c.recruiter || '-'}</td><td style="color:var(--primary);">${c.tech}</td>
             <td class="text-cyan" style="font-weight:bold; cursor:pointer" onclick="openModal('${c.id}', 'submissionLog', '${c.first}')">${(c.submissionLog||[]).length}</td>
-            <td class="text-cyan" style="font-weight:bold; cursor:pointer" onclick="openModal('${c.id}', 'screeningLog', '${c.first}')">${(c.screeningLog||[]).length}</td>
+            <td class="text-gold" style="font-weight:bold; cursor:pointer" onclick="openModal('${c.id}', 'screeningLog', '${c.first}')">${(c.screeningLog||[]).length}</td>
             <td class="text-cyan" style="font-weight:bold; cursor:pointer" onclick="openModal('${c.id}', 'interviewLog', '${c.first}')">${(c.interviewLog||[]).length}</td>
             <td>${lastAct}</td></tr>`;
     }).join('');
     renderPagination(dom.tables.hub, totalPages, 'hub');
 }
 
+// --- ONBOARDING TABLE ---
 function renderOnboardingTable() {
-    // 1. Filter Logic
     const filtered = state.onboarding.filter(item => {
         const searchText = state.onbFilters.text;
         const fullName = (item.first + ' ' + item.last).toLowerCase();
@@ -334,22 +293,31 @@ function renderOnboardingTable() {
     const start = (state.pagination.onb - 1) * state.pagination.limit;
     const pageData = filtered.slice(start, start + state.pagination.limit);
 
-    const headers = ['<input type="checkbox" id="select-all-onb" onclick="toggleSelectAll(\'onb\', this)">', '#', 'First Name', 'Last Name', 'Mobile', 'Status', 'Assigned', 'Comments'];
+    const headers = ['<input type="checkbox" id="select-all-onb" onclick="toggleSelectAll(\'onb\', this)">', '#', 'First Name', 'Last Name', 'Recruiter', 'Mobile', 'Status', 'Assigned', 'Comments'];
     dom.tables.onb.head.innerHTML = `<tr>${headers.map(h => `<th>${h}</th>`).join('')}</tr>`;
     dom.tables.onb.body.innerHTML = pageData.map((c, i) => {
         const idx = start + i + 1;
         const isSel = state.selection.onb.has(c.id) ? 'checked' : '';
-        return `<tr><td><input type="checkbox" ${isSel} onchange="toggleSelect('${c.id}', 'onb')"></td><td>${idx}</td><td onclick="inlineEdit('${c.id}', 'first', 'onboarding', this)">${c.first}</td><td onclick="inlineEdit('${c.id}', 'last', 'onboarding', this)">${c.last}</td><td onclick="inlineEdit('${c.id}', 'mobile', 'onboarding', this)">${c.mobile}</td>
+        return `<tr><td><input type="checkbox" ${isSel} onchange="toggleSelect('${c.id}', 'onb')"></td><td>${idx}</td>
+        <td onclick="inlineEdit('${c.id}', 'first', 'onboarding', this)">${c.first}</td><td onclick="inlineEdit('${c.id}', 'last', 'onboarding', this)">${c.last}</td>
+        <td onclick="editRecruiter('${c.id}', 'onboarding', this)">${c.recruiter || '-'}</td>
+        <td onclick="inlineEdit('${c.id}', 'mobile', 'onboarding', this)">${c.mobile}</td>
         <td><select class="status-select ${c.status === 'Onboarding' ? 'active' : 'inactive'}" onchange="updateStatus('${c.id}', 'onboarding', this.value)"><option value="Onboarding" ${c.status==='Onboarding'?'selected':''}>Onboarding</option><option value="Completed" ${c.status==='Completed'?'selected':''}>Completed</option></select></td>
         <td>${c.assigned}</td><td onclick="inlineEdit('${c.id}', 'comments', 'onboarding', this)">${c.comments || '-'}</td></tr>`;
     }).join('');
-    
     renderPagination(dom.tables.onb, totalPages, 'onb');
 }
 
 /* ========================================================
-   10. UTILITIES (Filters, Pagination, Edits)
+   9. UTILITIES
    ======================================================== */
+function renderDropdowns() {
+    const rSelect = document.getElementById('filter-recruiter');
+    if (rSelect && state.metadata.recruiters) rSelect.innerHTML = `<option value="">All Recruiters</option>` + state.metadata.recruiters.map(r => `<option value="${r}">${r}</option>`).join('');
+    const tSelect = document.getElementById('filter-tech');
+    if (tSelect && state.metadata.techs) tSelect.innerHTML = `<option value="">All Tech</option>` + state.metadata.techs.map(t => `<option value="${t}">${t}</option>`).join('');
+}
+
 function getFilteredData(data, filters, page) {
     const filtered = data.filter(item => {
         const matchesText = (item.first + ' ' + item.last + ' ' + (item.tech||'')).toLowerCase().includes(filters.text);
@@ -403,14 +371,10 @@ window.toggleSelectAll = (type, mainCheckbox) => {
     if (type === 'cand') currentData = getFilteredData(state.candidates, state.filters, state.pagination.cand).filtered;
     else { 
         const searchText = state.onbFilters.text;
-        const filtered = state.onboarding.filter(item => {
-            const fullName = (item.first + ' ' + item.last).toLowerCase();
-            return fullName.includes(searchText);
-        });
+        const filtered = state.onboarding.filter(item => (item.first + ' ' + item.last).toLowerCase().includes(searchText));
         const start = (state.pagination.onb - 1) * state.pagination.limit;
         currentData = filtered.slice(start, start + state.pagination.limit);
     }
-    
     currentData.forEach(item => { if (isChecked) state.selection[type].add(item.id); else state.selection[type].delete(item.id); });
     updateSelectButtons(type);
     if (type === 'cand') renderCandidateTable(); else renderOnboardingTable();
@@ -424,74 +388,49 @@ function updateSelectButtons(type) {
 }
 
 /* ========================================================
-   11. EVENT LISTENERS
+   10. EVENT LISTENERS
    ======================================================== */
 function setupEventListeners() {
     document.getElementById('btn-logout').addEventListener('click', () => auth.signOut());
     document.getElementById('theme-toggle').addEventListener('click', () => { document.body.classList.toggle('light-mode'); localStorage.setItem('np_theme', document.body.classList.contains('light-mode') ? 'light' : 'dark'); });
     
-    // Navigation
-    dom.navItems.forEach(btn => {
-        btn.addEventListener('click', e => {
-            dom.navItems.forEach(b => b.classList.remove('active')); e.currentTarget.classList.add('active');
-            Object.values(dom.views).forEach(v => v.classList.remove('active'));
-            const target = e.currentTarget.dataset.target; if(document.getElementById(target)) { document.getElementById(target).classList.add('active'); if(target === 'view-dashboard') updateDashboardStats(); }
-        });
-    });
+    // Auth
+    window.handleLogin = () => { const e = document.getElementById('login-email').value, p = document.getElementById('login-pass').value; auth.signInWithEmailAndPassword(e, p).catch(err => showToast(cleanError(err.message))); };
+    window.handleSignup = () => { const n = document.getElementById('reg-name').value, e = document.getElementById('reg-email').value, p = document.getElementById('reg-pass').value; auth.createUserWithEmailAndPassword(e, p).then(r => r.user.updateProfile({displayName:n})).then(u=>{firebase.auth().currentUser.sendEmailVerification();showToast("Check Email!");switchAuth('login');}).catch(err => showToast(cleanError(err.message))); };
+    window.handleReset = () => { auth.sendPasswordResetEmail(document.getElementById('reset-email').value).then(()=>showToast("Link Sent")).catch(err=>showToast(cleanError(err.message))); };
+    window.checkVerificationStatus = () => { const u = firebase.auth().currentUser; if(u) u.reload().then(()=>{if(u.emailVerified) location.reload();}); };
+    window.resendVerificationEmail = () => { const u = firebase.auth().currentUser; if(u) u.sendEmailVerification().then(()=>showToast("Sent!")); };
 
-    // SEED DATA
+    // Seed
     document.getElementById('btn-seed-data').addEventListener('click', window.seedData);
     
-    // FILTERS
+    // Candidate Filters
     document.getElementById('search-input').addEventListener('input', e => { state.filters.text = e.target.value.toLowerCase(); state.pagination.cand = 1; renderCandidateTable(); });
-    document.getElementById('hub-search-input').addEventListener('input', e => { state.hubFilters.text = e.target.value.toLowerCase(); state.pagination.hub = 1; renderHubTable(); });
-    
-    // NEW: Onboarding Search
-    const onbSearch = document.getElementById('onb-search-input');
-    if(onbSearch) {
-        onbSearch.addEventListener('input', e => {
-            state.onbFilters.text = e.target.value.toLowerCase();
-            state.pagination.onb = 1; 
-            renderOnboardingTable();
-        });
-    }
-
     document.getElementById('filter-recruiter').addEventListener('change', e => { state.filters.recruiter = e.target.value; state.pagination.cand = 1; renderCandidateTable(); });
     document.getElementById('filter-tech').addEventListener('change', e => { state.filters.tech = e.target.value; state.pagination.cand = 1; renderCandidateTable(); });
     document.querySelectorAll('.btn-toggle').forEach(btn => { btn.addEventListener('click', e => { document.querySelectorAll('.btn-toggle').forEach(b => b.classList.remove('active')); e.target.classList.add('active'); state.filters.status = e.target.dataset.status; state.pagination.cand = 1; renderCandidateTable(); }); });
-    
-    const btnReset = document.getElementById('btn-reset-filters');
-    if (btnReset) btnReset.addEventListener('click', () => { document.getElementById('search-input').value = ''; document.getElementById('filter-recruiter').value = ''; document.getElementById('filter-tech').value = ''; document.querySelectorAll('.btn-toggle').forEach(b => b.classList.remove('active')); document.querySelector('.btn-toggle[data-status=""]').classList.add('active'); state.filters = { text: '', recruiter: '', tech: '', status: '' }; state.pagination.cand = 1; renderCandidateTable(); showToast("Filters refreshed"); });
+    document.getElementById('btn-reset-filters').addEventListener('click', () => { document.getElementById('search-input').value = ''; document.getElementById('filter-recruiter').value = ''; document.getElementById('filter-tech').value = ''; document.querySelectorAll('.btn-toggle').forEach(b => b.classList.remove('active')); document.querySelector('.btn-toggle[data-status=""]').classList.add('active'); state.filters = { text: '', recruiter: '', tech: '', status: '' }; state.pagination.cand = 1; renderCandidateTable(); showToast("Filters refreshed"); });
 
-    // INSERT CANDIDATE
-    document.getElementById('btn-add-candidate').addEventListener('click', () => {
-        state.filters = { text: '', recruiter: '', tech: '', status: '' }; state.pagination.cand = 1;
-        document.getElementById('search-input').value = ''; document.getElementById('filter-recruiter').value = ''; document.getElementById('filter-tech').value = '';
-        const newDoc = { first: '', last: '', mobile: '', wa: '', tech: '', recruiter: '', status: 'Active', assigned: new Date().toISOString().split('T')[0], comments: '', createdAt: Date.now(), submissionLog: [], screeningLog: [], interviewLog: [] };
-        db.collection('candidates').add(newDoc)
-            .then(() => { showToast("New row inserted"); })
-            .catch(err => { console.error(err); showToast("Error: " + err.message); });
-    });
+    // Hub Filter (New)
+    document.getElementById('hub-search-input').addEventListener('input', e => { state.hubFilters.text = e.target.value.toLowerCase(); state.pagination.hub = 1; renderHubTable(); });
+    const hubRecSelect = document.getElementById('hub-filter-recruiter');
+    if(hubRecSelect) { hubRecSelect.addEventListener('change', (e) => { state.hubFilters.recruiter = e.target.value; state.pagination.hub = 1; renderHubTable(); }); }
 
-    // INSERT ONBOARDING
-    document.getElementById('btn-add-onboarding').addEventListener('click', () => {
-        const searchInput = document.getElementById('onb-search-input');
-        if(searchInput) searchInput.value = '';
-        state.onbFilters.text = '';
-        state.pagination.onb = 1;
+    // Onboarding Filter
+    const onbSearch = document.getElementById('onb-search-input');
+    if(onbSearch) { onbSearch.addEventListener('input', e => { state.onbFilters.text = e.target.value.toLowerCase(); state.pagination.onb = 1; renderOnboardingTable(); }); }
 
-        const newDoc = { first: '', last: '', mobile: '', status: 'Onboarding', assigned: new Date().toISOString().split('T')[0], comments: '', createdAt: Date.now() };
-        db.collection('onboarding').add(newDoc)
-            .then(() => { showToast("New row inserted"); })
-            .catch(err => { console.error(err); showToast("Error: " + err.message); });
-    });
+    // Add Buttons
+    document.getElementById('btn-add-candidate').addEventListener('click', () => { db.collection('candidates').add({ first: '', last: '', mobile: '', wa: '', tech: '', recruiter: '', status: 'Active', assigned: new Date().toISOString().split('T')[0], comments: '', createdAt: Date.now(), submissionLog: [], screeningLog: [], interviewLog: [] }).then(() => showToast("Inserted")); });
+    document.getElementById('btn-add-onboarding').addEventListener('click', () => { db.collection('onboarding').add({ first: '', last: '', mobile: '', status: 'Onboarding', assigned: new Date().toISOString().split('T')[0], comments: '', createdAt: Date.now() }).then(() => showToast("Inserted")); });
 
+    // Delete Buttons
     document.getElementById('btn-delete-selected').addEventListener('click', () => openDeleteModal('cand'));
     document.getElementById('btn-delete-onboarding').addEventListener('click', () => openDeleteModal('onb'));
 }
 
 /* ========================================================
-   12. EXPORT & CHART & SEED
+   11. DATA OPS
    ======================================================== */
 window.seedData = () => {
     const batch = db.batch();
@@ -499,20 +438,9 @@ window.seedData = () => {
     const recList = state.metadata.recruiters;
     for (let i = 1; i <= 25; i++) {
         const newRef = db.collection('candidates').doc();
-        const data = {
-             first: `Candidate`, last: `${i}`,
-             mobile: `98765432${i < 10 ? '0'+i : i}`, wa: `98765432${i < 10 ? '0'+i : i}`,
-             tech: techList[Math.floor(Math.random() * techList.length)],
-             recruiter: recList[Math.floor(Math.random() * recList.length)],
-             status: i % 3 === 0 ? "Inactive" : "Active", 
-             linkedin: "https://linkedin.com", resume: "https://resume.com", track: "", 
-             assigned: new Date().toISOString().split('T')[0],
-             gmail: "mailto:test@gmail.com", comments: "Auto-generated demo data",
-             createdAt: Date.now() + i
-        };
-        batch.set(newRef, data);
+        batch.set(newRef, { first: `Candidate`, last: `${i}`, mobile: `98765432${i < 10 ? '0'+i : i}`, wa: `98765432${i < 10 ? '0'+i : i}`, tech: techList[Math.floor(Math.random() * techList.length)], recruiter: recList[Math.floor(Math.random() * recList.length)], status: i % 3 === 0 ? "Inactive" : "Active", assigned: new Date().toISOString().split('T')[0], comments: "Auto-generated demo data", createdAt: Date.now() + i });
     }
-    batch.commit().then(() => { state.pagination.cand = 1; renderCandidateTable(); showToast("25 Demo Candidates Inserted"); }).catch(err => showToast("Error seeding data: " + err.message));
+    batch.commit().then(() => { state.pagination.cand = 1; renderCandidateTable(); showToast("25 Demo Candidates Inserted"); });
 };
 
 window.openModal = (id, type, name) => { state.modal.id = id; state.modal.type = type; dom.modal.self.style.display = 'flex'; dom.modal.title.innerText = `${name} - ${type.replace('Log','').toUpperCase()}`; dom.modal.input.value = new Date().toISOString().split('T')[0]; renderModalContent(); };
@@ -522,15 +450,14 @@ function renderModalContent() { const c = state.candidates.find(x => x.id === st
 
 window.openDeleteModal = (type) => { const count = state.selection[type].size; if (count === 0) return; state.pendingDelete.type = type; document.getElementById('del-count').innerText = count; document.getElementById('delete-modal').style.display = 'flex'; };
 window.closeDeleteModal = () => { document.getElementById('delete-modal').style.display = 'none'; state.pendingDelete.type = null; };
-window.executeDelete = () => { const type = state.pendingDelete.type; if (!type) return; const collection = type === 'cand' ? 'candidates' : 'onboarding'; state.selection[type].forEach(id => { db.collection(collection).doc(id).delete().catch(err => console.error(err)); }); state.selection[type].clear(); updateSelectButtons(type); if (type === 'cand') { renderCandidateTable(); } else { renderOnboardingTable(); } showToast("Items Deleted Successfully"); closeDeleteModal(); };
+window.executeDelete = () => { const type = state.pendingDelete.type; if (!type) return; const collection = type === 'cand' ? 'candidates' : 'onboarding'; state.selection[type].forEach(id => { db.collection(collection).doc(id).delete(); }); state.selection[type].clear(); updateSelectButtons(type); showToast("Items Deleted"); closeDeleteModal(); };
 
-window.exportData = () => { if (state.candidates.length === 0) return showToast("No data to export"); const headers = ["ID", "First Name", "Last Name", "Mobile", "Tech", "Recruiter", "Status", "Assigned Date", "Comments"]; const csvRows = [headers.join(",")]; state.candidates.forEach(c => { const row = [c.id, `"${c.first}"`, `"${c.last}"`, `"${c.mobile}"`, `"${c.tech}"`, `"${c.recruiter}"`, `"${c.status}"`, c.assigned, `"${(c.comments || '').replace(/"/g, '""')}"`]; csvRows.push(row.join(",")); }); const blob = new Blob([csvRows.join("\n")], { type: "text/csv" }); const url = window.URL.createObjectURL(blob); const a = document.createElement("a"); a.href = url; a.download = "nileprise_candidates.csv"; a.click(); showToast("Data Exported"); };
+window.exportData = () => { if (state.candidates.length === 0) return showToast("No data"); const headers = ["ID", "First", "Last", "Mobile", "Tech", "Recruiter", "Status", "Date", "Comments"]; const csvRows = [headers.join(",")]; state.candidates.forEach(c => { const row = [c.id, `"${c.first}"`, `"${c.last}"`, `"${c.mobile}"`, `"${c.tech}"`, `"${c.recruiter}"`, `"${c.status}"`, c.assigned, `"${(c.comments || '').replace(/"/g, '""')}"`]; csvRows.push(row.join(",")); }); const blob = new Blob([csvRows.join("\n")], { type: "text/csv" }); const url = window.URL.createObjectURL(blob); const a = document.createElement("a"); a.href = url; a.download = "candidates.csv"; a.click(); };
 
 /* ========================================================
-   UPDATED DASHBOARD LOGIC
+   12. CHARTS & DASHBOARD
    ======================================================== */
 function updateDashboardStats() { 
-    // 1. Update Numbers
     const total = state.candidates.length;
     const techs = new Set(state.candidates.map(c=>c.tech)).size;
     const recruiters = state.metadata.recruiters.length;
@@ -538,70 +465,25 @@ function updateDashboardStats() {
     if(document.getElementById('stat-total')) document.getElementById('stat-total').innerText = total;
     if(document.getElementById('stat-tech')) document.getElementById('stat-tech').innerText = techs;
     if(document.getElementById('stat-rec')) document.getElementById('stat-rec').innerText = recruiters;
-    
-    if(document.getElementById('current-date-display')) {
-        document.getElementById('current-date-display').innerText = new Date().toLocaleDateString();
-    }
+    if(document.getElementById('current-date-display')) document.getElementById('current-date-display').innerText = new Date().toLocaleDateString();
 
     const techData = getChartData('tech');
     const recData = getChartData('recruiter');
 
-    renderChart('chart-recruiter', recData, 'bar'); // Bar looks better for names
+    renderChart('chart-recruiter', recData, 'bar'); 
     renderChart('chart-tech', techData, 'doughnut');
 }
 
 function getChartData(key) { const counts = {}; state.candidates.forEach(c => counts[c[key]] = (counts[c[key]] || 0) + 1); return { labels: Object.keys(counts), data: Object.values(counts) }; }
-
 let chartInstances = {}; 
-
 function renderChart(id, data, type) { 
     const ctx = document.getElementById(id);
     if(!ctx) return; 
-
     const context = ctx.getContext('2d');
     if(chartInstances[id]) chartInstances[id].destroy(); 
-
     const colors = ['#06b6d4', '#f59e0b', '#8b5cf6', '#22c55e', '#ef4444', '#ec4899', '#6366f1'];
-
-    chartInstances[id] = new Chart(context, { 
-        type: type, 
-        data: { 
-            labels: data.labels, 
-            datasets: [{ 
-                label: 'Candidates',
-                data: data.data, 
-                backgroundColor: colors, 
-                borderColor: 'rgba(0,0,0,0.1)',
-                borderWidth: 1,
-                borderRadius: 4, 
-                barThickness: 20
-            }] 
-        }, 
-        options: { 
-            responsive: true, 
-            maintainAspectRatio: false,
-            plugins: { 
-                legend: { 
-                    display: type === 'doughnut', 
-                    position: 'right', 
-                    labels: { color: '#94a3b8', font: { size: 11 } } 
-                } 
-            },
-            scales: {
-                y: {
-                    display: type === 'bar',
-                    grid: { color: 'rgba(255,255,255,0.05)' },
-                    ticks: { color: '#94a3b8' }
-                },
-                x: {
-                    display: type === 'bar',
-                    grid: { display: false },
-                    ticks: { color: '#94a3b8' }
-                }
-            }
-        } 
-    }); 
+    chartInstances[id] = new Chart(context, { type: type, data: { labels: data.labels, datasets: [{ label: 'Candidates', data: data.data, backgroundColor: colors, borderColor: 'rgba(0,0,0,0.1)', borderWidth: 1, borderRadius: 4, barThickness: 20 }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: type === 'doughnut', position: 'right', labels: { color: '#94a3b8', font: { size: 11 } } } }, scales: { y: { display: type === 'bar', grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#94a3b8' } }, x: { display: type === 'bar', grid: { display: false }, ticks: { color: '#94a3b8' } } } } }); 
 }
 
-// --- START APP SAFELY ---
+// START
 document.addEventListener('DOMContentLoaded', init);
