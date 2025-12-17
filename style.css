@@ -407,7 +407,7 @@ body { margin: 0; font-family: 'Inter', sans-serif; background-color: var(--bg-a
     position: relative; 
     scrollbar-width: thin; 
     scrollbar-color: var(--primary) rgba(0,0,0,0.2); 
-    height: auto; /* Allow flex to manage height */
+    height: auto; 
 }
 .table-wrapper::-webkit-scrollbar { width: 8px; height: 8px; }
 .table-wrapper::-webkit-scrollbar-track { background: rgba(0,0,0,0.2); }
@@ -417,7 +417,7 @@ body { margin: 0; font-family: 'Inter', sans-serif; background-color: var(--bg-a
 th, td { 
     padding: 14px 16px; 
     text-align: center; 
-    border-bottom: 1px solid var(--glass-border); /* FIXED BORDER */
+    border-bottom: 1px solid var(--glass-border); /* Fixed border variable */
     white-space: nowrap; 
     overflow: hidden; 
     text-overflow: ellipsis; 
@@ -476,48 +476,9 @@ tr:hover td { background: var(--table-row-hover); }
 .url-cell input { background: #ffffff !important; color: #000000 !important; }
 .editing-cell { padding: 0 !important; overflow: visible !important; }
 .modern-table td:empty::before { content: "-"; color: var(--text-muted); opacity: 0.3; }
-.footer-count { padding: 10px; text-align: center; color: var(--text-muted); border-top: 1px solid var(--glass-border); font-size: 0.8rem; background: rgba(0,0,0,0.2); }
 
-/* HUB TABLE WIDTHS */
-#hub-table th:nth-child(3), #hub-table td:nth-child(3) { width: var(--w-recruiter); }
-#hub-table th:nth-child(4), #hub-table td:nth-child(4) { width: var(--w-tech); color: var(--primary); }
-#hub-table th:nth-child(5), #hub-table td:nth-child(5),
-#hub-table th:nth-child(6), #hub-table td:nth-child(6),
-#hub-table th:nth-child(7), #hub-table td:nth-child(7) { width: 90px; cursor: pointer; font-weight: bold; text-align: center; }
-#hub-table th:nth-child(5), #hub-table td:nth-child(5) { color: #22c55e; } 
-#hub-table th:nth-child(6), #hub-table td:nth-child(6) { color: #f59e0b; } 
-#hub-table th:nth-child(7), #hub-table td:nth-child(7) { color: #06b6d4; }
-#hub-table th:nth-child(8), #hub-table td:nth-child(8) { width: var(--w-date); }
-
-/* CANDIDATE TABLE WIDTHS */
-.modern-table th:nth-child(11), .modern-table td:nth-child(11), 
-.modern-table th:nth-child(12), .modern-table td:nth-child(12), 
-.modern-table th:nth-child(13), .modern-table td:nth-child(13), 
-.modern-table th:nth-child(14), .modern-table td:nth-child(14) { width: var(--w-url); }
-.modern-table th:nth-child(15), .modern-table td:nth-child(15) { width: var(--w-comments); }
-
-/* ONBOARDING TABLE WIDTHS */
-#onboarding-table th:nth-child(1), #onboarding-table td:nth-child(1) { width: 40px; }
-#onboarding-table th:nth-child(2), #onboarding-table td:nth-child(2) { width: 50px; }
-#onboarding-table th:nth-child(3), #onboarding-table td:nth-child(3) { width: 130px; }
-#onboarding-table th:nth-child(4), #onboarding-table td:nth-child(4) { width: 130px; }
-#onboarding-table th:nth-child(5), #onboarding-table td:nth-child(5) { width: 150px; cursor: pointer; }
-#onboarding-table th:nth-child(6), #onboarding-table td:nth-child(6) { width: 120px; } 
-#onboarding-table th:nth-child(7), #onboarding-table td:nth-child(7) { width: 160px; } 
-#onboarding-table th:nth-child(8), #onboarding-table td:nth-child(8) { width: 140px; } 
-#onboarding-table th:nth-child(9), #onboarding-table td:nth-child(9) { width: 250px; }
-
-/* EMPLOYEE TABLE WIDTHS */
-#employee-table th:nth-child(1), #employee-table td:nth-child(1) { width: 40px; }
-#employee-table th:nth-child(2), #employee-table td:nth-child(2) { width: 50px; }
-#employee-table th:nth-child(3), #employee-table td:nth-child(3) { width: 120px; } /* First Name */
-#employee-table th:nth-child(4), #employee-table td:nth-child(4) { width: 120px; } /* Last Name */
-#employee-table th:nth-child(5), #employee-table td:nth-child(5) { width: var(--w-desig); font-weight: 600; color: var(--primary); } /* Designation */
-#employee-table th:nth-child(6), #employee-table td:nth-child(6),
-#employee-table th:nth-child(7), #employee-table td:nth-child(7) { width: 120px; } /* Mobiles */
-#employee-table th:nth-child(8), #employee-table td:nth-child(8),
-#employee-table th:nth-child(9), #employee-table td:nth-child(9) { width: var(--w-email); } /* Emails */
-#employee-table th:nth-child(10), #employee-table td:nth-child(10) { width: 180px; } /* Tracking Sheet */
+/* FIX FOOTER TO BOTTOM */
+.footer-count { padding: 10px; text-align: center; color: var(--text-muted); border-top: 1px solid var(--glass-border); font-size: 0.8rem; background: rgba(0,0,0,0.2); flex-shrink: 0; }
 
 /* PROFILE & SETTINGS */
 .profile-header { height: 150px; background: linear-gradient(135deg, rgba(6,182,212,0.2), rgba(245,158,11,0.1)); border-bottom: 1px solid var(--glass-border); position: relative; }
