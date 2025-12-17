@@ -396,7 +396,7 @@ body { margin: 0; font-family: 'Inter', sans-serif; background-color: var(--bg-a
 .table-wrapper::-webkit-scrollbar-thumb { background: var(--glass-border); border-radius: 4px; }
 .table-wrapper::-webkit-scrollbar-thumb:hover { background: var(--primary); }
 .modern-table { width: 100%; border-collapse: separate; border-spacing: 0; }
-th, td { padding: 14px 16px; text-align: center; border-bottom: 1px solid rgba(255,255,255,0.03); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; background: var(--table-row-bg); transition: none !important; vertical-align: middle; }
+th, td { padding: 14px 16px; text-align: center; border-bottom: 1px solid var(--glass-border); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; background: var(--table-row-bg); transition: none !important; vertical-align: middle; }
 
 /* PROFESSIONAL HEADER STYLING */
 thead th { position: sticky; top: 0; z-index: 100; background: var(--table-head-bg); padding: 16px; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 1px; border-bottom: 2px solid var(--primary); box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); color: var(--text-main); font-weight: 700; }
