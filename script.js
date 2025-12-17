@@ -333,7 +333,7 @@ function renderCandidateTable() {
     }).join('');
 }
 
-// --- HUB TABLE RENDERER ---
+// --- HUB TABLE RENDERER (Smart Row Filtering + Edit/Delete) ---
 function renderHubTable() {
     const filtered = state.candidates.filter(c => {
         const matchesText = (c.first + ' ' + c.last).toLowerCase().includes(state.hubFilters.text);
@@ -350,7 +350,7 @@ function renderHubTable() {
     if(footerCount) footerCount.innerText = `Showing ${filtered.length} records`;
 
     // 1. DETERMINE ROW DETAILS RANGE (Strictly the SELECTED DATE)
-    // The user requested: "in the row show selected date show details for the selected date only"
+    // "in the row show selected date show details for the selected date only"
     const selectedDate = new Date(state.hubDate);
     const rowStart = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), selectedDate.getDate()).getTime();
     const rowEnd = rowStart + 86400000; // End of that specific day
@@ -369,7 +369,8 @@ function renderHubTable() {
         const scrs = filterLogs(c.screeningLog);
         const ints = filterLogs(c.interviewLog);
 
-        // Stats in Main Row: Show TOTALS for quick overview
+        // Stats in Main Row: Show TOTALS for quick overview (or filter based on top selection?)
+        // Let's keep main row showing TOTALS for now as per standard CRM, details show filtered.
         const totalSubs = (c.submissionLog||[]).length;
         const totalScrs = (c.screeningLog||[]).length;
         const totalInts = (c.interviewLog||[]).length;
@@ -424,7 +425,7 @@ function renderHubTable() {
                     <div class="hub-details-wrapper" onclick="event.stopPropagation()">
                         
                         <div class="hub-col cyan">
-                            <div class="hub-col-header cyan"><i class="fa-solid fa-paper-plane"></i> Submissions</div>
+                            <div class="hub-col-header cyan"><i class="fa-solid fa-paper-plane"></i> Submissions <span style="float:right; opacity:0.5">${subs.length} today</span></div>
                             <div class="hub-input-group">
                                 <input type="date" id="input-sub-${c.id}" value="${inputDefault}">
                                 <button class="btn btn-primary" onclick="addHubLog('${c.id}', 'submissionLog', 'input-sub-${c.id}')">Add</button>
@@ -433,7 +434,7 @@ function renderHubTable() {
                         </div>
 
                         <div class="hub-col gold">
-                            <div class="hub-col-header gold"><i class="fa-solid fa-user-clock"></i> Screenings</div>
+                            <div class="hub-col-header gold"><i class="fa-solid fa-user-clock"></i> Screenings <span style="float:right; opacity:0.5">${scrs.length} today</span></div>
                             <div class="hub-input-group">
                                 <input type="date" id="input-scr-${c.id}" value="${inputDefault}">
                                 <button class="btn btn-primary" style="background:#f59e0b;" onclick="addHubLog('${c.id}', 'screeningLog', 'input-scr-${c.id}')">Add</button>
@@ -442,7 +443,7 @@ function renderHubTable() {
                         </div>
 
                         <div class="hub-col purple">
-                            <div class="hub-col-header purple"><i class="fa-solid fa-headset"></i> Interviews</div>
+                            <div class="hub-col-header purple"><i class="fa-solid fa-headset"></i> Interviews <span style="float:right; opacity:0.5">${ints.length} today</span></div>
                             <div class="hub-input-group">
                                 <input type="date" id="input-int-${c.id}" value="${inputDefault}">
                                 <button class="btn btn-primary" style="background:#8b5cf6;" onclick="addHubLog('${c.id}', 'interviewLog', 'input-int-${c.id}')">Add</button>
