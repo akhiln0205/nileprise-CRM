@@ -7,9 +7,7 @@
   
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-  
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
-  
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -26,6 +24,8 @@
   </div>
 
   <div id="app" class="app-container">
+
+    <div id="sidebar-overlay" class="sidebar-overlay"></div>
 
     <section id="auth-screen" class="screen active">
       <div class="glass-panel auth-box">
@@ -110,6 +110,7 @@
           <button class="nav-item active" data-target="view-dashboard"><i class="fa-solid fa-chart-pie"></i> <span>Overview</span></button>
           <button class="nav-item" data-target="view-candidates"><i class="fa-solid fa-users"></i> <span>Candidates</span></button>
           <button class="nav-item" data-target="view-hub"><i class="fa-solid fa-id-card"></i> <span>Candidate Hub</span></button>
+          <button class="nav-item" data-target="view-employees"><i class="fa-solid fa-address-book"></i> <span>Employees</span></button>
           <button class="nav-item" data-target="view-onboarding"><i class="fa-solid fa-user-check"></i> <span>Onboarding</span></button>
           <button class="nav-item" data-target="view-profile"><i class="fa-solid fa-user-gear"></i> <span>Profile</span></button>
           <button class="nav-item" data-target="view-settings"><i class="fa-solid fa-gear"></i> <span>Settings</span></button>
@@ -119,9 +120,16 @@
       <main class="main-content">
         
         <header class="top-bar">
+          <button id="btn-mobile-menu" class="btn-icon" style="margin-right: 10px; display: none;">
+            <i class="fa-solid fa-bars"></i>
+          </button>
+
           <h2 id="page-title">Dashboard</h2>
           <div class="header-right">
-            <div class="header-widget"><span class="label">Live Sync:</span><span id="header-updated" class="value" style="color:#22c55e">Active</span></div>
+            <div class="header-widget">
+                <span class="label">Live Sync:</span>
+                <span id="header-updated" class="value text-success">Active</span>
+            </div>
             <div class="v-divider"></div>
             
             <div class="admin-pill">
@@ -217,6 +225,50 @@
         </div>
 
         <div id="view-hub" class="content-view">
+          
+          <div class="glass-panel" style="padding: 20px; margin-bottom: 20px;">
+            <div class="hub-header-row">
+              <div class="hub-title-block">
+                <h2 style="margin:0;">Activity Hub</h2>
+                <div id="hub-range-label" class="hub-date-display">
+                    <i class="fa-regular fa-calendar"></i> Loading...
+                </div>
+              </div>
+              
+              <div class="hub-controls">
+                <div class="custom-date-wrapper">
+                    <input type="date" id="hub-date-picker" class="hub-date-input">
+                </div>
+
+                <div class="v-divider" style="height:25px; margin:0 5px;"></div>
+
+                <div class="date-filter-pill">
+                  <button class="filter-btn active" data-filter="daily">Daily</button>
+                  <button class="filter-btn" data-filter="weekly">Weekly</button>
+                  <button class="filter-btn" data-filter="monthly">Monthly</button>
+                </div>
+                
+                <div class="v-divider" style="height:25px; margin:0 5px;"></div>
+                <button id="change-wallpaper-btn" class="btn-icon" title="Change Wallpaper"><i class="fa-solid fa-image"></i></button>
+              </div>
+            </div>
+
+            <div class="hub-stats-row">
+              <div class="hub-stat-card">
+                <div class="icon-wrapper cyan"><i class="fa-solid fa-paper-plane"></i></div>
+                <div class="stat-info"><span class="stat-label">Submissions</span><h2 id="stat-sub">0</h2></div>
+              </div>
+              <div class="hub-stat-card">
+                <div class="icon-wrapper gold"><i class="fa-solid fa-user-clock"></i></div>
+                <div class="stat-info"><span class="stat-label">Screenings</span><h2 id="stat-scr">0</h2></div>
+              </div>
+              <div class="hub-stat-card">
+                <div class="icon-wrapper purple"><i class="fa-solid fa-headset"></i></div>
+                <div class="stat-info"><span class="stat-label">Interviews</span><h2 id="stat-int">0</h2></div>
+              </div>
+            </div>
+          </div>
+
           <div class="toolbar glass-panel">
             <div class="filters-group" style="justify-content: space-between; width:100%;">
                 <div class="filter-box" style="max-width: 200px;">
@@ -237,6 +289,30 @@
             <div class="table-wrapper"><table class="modern-table" id="hub-table"><thead id="hub-table-head"></thead><tbody id="hub-table-body"></tbody></table></div>
              <div class="footer-count"><small id="hub-footer-count">Showing all records</small></div>
           </div>
+        </div>
+
+        <div id="view-employees" class="content-view">
+            <div class="toolbar glass-panel">
+                <div class="left-actions">
+                    <button id="btn-add-employee" class="btn btn-primary"><i class="fa-solid fa-user-plus"></i> Insert Row</button>
+                    <button id="btn-delete-employee" class="btn btn-danger" style="display: none;"><i class="fa-solid fa-trash-can"></i> Delete (<span id="emp-selected-count">0</span>)</button>
+                </div>
+                <div class="filters-group" style="justify-content: flex-end;">
+                    <div class="search-box">
+                        <i class="fa-solid fa-search"></i>
+                        <input type="text" id="emp-search-input" placeholder="Search Employee...">
+                    </div>
+                </div>
+            </div>
+            <div class="table-container glass-panel">
+                <div class="table-wrapper">
+                    <table class="modern-table" id="employee-table">
+                        <thead id="employee-table-head"></thead>
+                        <tbody id="employee-table-body"></tbody>
+                    </table>
+                </div>
+                <div class="footer-count"><small id="emp-footer-count">Showing all records</small></div>
+            </div>
         </div>
 
         <div id="view-onboarding" class="content-view">
@@ -265,25 +341,103 @@
         </div>
 
         <div id="view-profile" class="content-view">
-          <div class="glass-panel profile-container">
-            <div class="profile-header">
-              <div class="profile-banner"></div>
-              <div class="profile-info-block">
-                <div class="profile-avatar-wrapper">
-                  <img id="profile-main-img" src="" class="avatar-img" style="display:none;">
-                  <div id="profile-main-icon" class="avatar-placeholder"><i class="fa-solid fa-user"></i></div>
+            <div class="glass-panel profile-container">
+               
+                <div class="profile-header">
+                <div class="profile-banner"></div>
+                <div class="profile-info-block">
+                    <div class="profile-avatar-wrapper">
+                    <img id="profile-main-img" src="" class="avatar-img" style="display:none;">
+                    <div id="profile-main-icon" class="avatar-placeholder"><i class="fa-solid fa-user"></i></div>
+                    </div>
+                    <div class="profile-names">
+                    <h2 id="prof-name-display">Loading...</h2>
+                    <p id="prof-role-display" class="role">Staff Member</p>
+                    </div>
                 </div>
-                <div class="profile-names"><h2 id="prof-name-display">Loading...</h2><p id="prof-role-display" class="role">Staff Member</p></div>
-              </div>
+                </div>
+
+                <div class="profile-body">
+               
+                <div style="display:flex; justify-content:flex-end; margin-bottom: 20px;">
+                    <button class="btn btn-primary" onclick="saveProfileData()">
+                    <i class="fa-solid fa-floppy-disk"></i> Save Changes
+                    </button>
+                </div>
+
+                <h3 style="color:var(--primary); margin-bottom:15px; font-size:1rem; border-bottom:1px solid var(--glass-border); padding-bottom:10px;">
+                    <i class="fa-solid fa-address-card"></i> Personal Details
+                </h3>
+
+                <div class="form-grid">
+                   
+                    <div class="form-group">
+                    <label>First Name</label>
+                    <div class="input-group" style="margin:0;">
+                        <i class="fa-solid fa-user"></i>
+                        <input type="text" id="prof-first" placeholder="First Name">
+                    </div>
+                    </div>
+
+                    <div class="form-group">
+                    <label>Last Name</label>
+                    <div class="input-group" style="margin:0;">
+                        <i class="fa-solid fa-user"></i>
+                        <input type="text" id="prof-last" placeholder="Last Name">
+                    </div>
+                    </div>
+
+                    <div class="form-group">
+                    <label>Designation <small style="opacity:0.6">(Official)</small></label>
+                    <div class="input-group" style="margin:0;">
+                        <i class="fa-solid fa-briefcase"></i>
+                        <input type="text" id="prof-designation" readonly style="opacity:0.7; cursor:not-allowed; background:rgba(255,255,255,0.05);">
+                    </div>
+                    </div>
+
+                    <div class="form-group">
+                    <label>Work Mobile Number</label>
+                    <div class="input-group" style="margin:0;">
+                        <i class="fa-solid fa-mobile-screen-button"></i>
+                        <input type="tel" id="prof-work-mobile" placeholder="+1 (555) 000-0000">
+                    </div>
+                    </div>
+
+                    <div class="form-group">
+                    <label>Personal Mobile Number</label>
+                    <div class="input-group" style="margin:0;">
+                        <i class="fa-solid fa-phone"></i>
+                        <input type="tel" id="prof-personal-mobile" placeholder="+91 90000 00000">
+                    </div>
+                    </div>
+
+                    <div class="form-group">
+                    <label>Official Email ID <small style="opacity:0.6">(Read Only)</small></label>
+                    <div class="input-group" style="margin:0;">
+                        <i class="fa-solid fa-envelope"></i>
+                        <input type="email" id="prof-office-email" readonly style="opacity:0.7; cursor:not-allowed; background:rgba(255,255,255,0.05);">
+                    </div>
+                    </div>
+
+                    <div class="form-group">
+                    <label>Personal Email ID</label>
+                    <div class="input-group" style="margin:0;">
+                        <i class="fa-regular fa-envelope"></i>
+                        <input type="email" id="prof-personal-email" placeholder="personal@gmail.com">
+                    </div>
+                    </div>
+
+                    <div class="form-group">
+                    <label>Tracking Sheet URL</label>
+                    <div class="input-group" style="margin:0;">
+                        <i class="fa-solid fa-table"></i>
+                        <input type="url" id="prof-sheet" placeholder="https://docs.google.com/spreadsheets/...">
+                    </div>
+                    </div>
+
+                </div>
+                </div>
             </div>
-            <div class="profile-body">
-               <div class="form-grid">
-                  <div class="form-group"><label>Email</label><input type="email" id="prof-email" readonly></div>
-                  <div class="form-group"><label>Username</label><input type="text" id="prof-username" readonly></div>
-                  <div class="form-group"><label>Last Login</label><input type="text" id="prof-last-login" readonly></div>
-               </div>
-            </div>
-          </div>
         </div>
 
         <div id="view-settings" class="content-view">
@@ -307,26 +461,6 @@
 
       </main>
     </section>
-  </div>
-
-  <div id="activity-modal" class="modal-overlay">
-    <div class="glass-panel modal-box">
-        <div class="modal-header"><h3 id="act-modal-title">Activity</h3><button class="btn-icon" onclick="closeActivityModal()"><i class="fa-solid fa-xmark"></i></button></div>
-        <div class="modal-body">
-            <div class="activity-stats">
-                <div class="stat-box"><h4>This Week</h4><span id="act-week">0</span></div>
-                <div class="stat-box"><h4>This Month</h4><span id="act-month">0</span></div>
-                <div class="stat-box"><h4>Total</h4><span id="act-total">0</span></div>
-            </div>
-            <div class="activity-add">
-                <div class="input-group" style="margin:0; flex:1;"><i class="fa-solid fa-calendar"></i><input type="date" id="act-date-input"></div>
-                <button class="btn btn-primary" onclick="saveActivityLog()">Add Log</button>
-            </div>
-            <div class="activity-history-container">
-                <ul id="act-history-list" class="activity-history-list"></ul>
-            </div>
-        </div>
-    </div>
   </div>
 
   <div id="delete-modal" class="modal-overlay">
