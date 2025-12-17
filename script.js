@@ -39,12 +39,23 @@ const state = {
     userRole: null, 
     candidates: [], 
     onboarding: [],
+    employees: [],
+    
+    // HUB STATES
+    expandedRowId: null,
+    hubFilterType: 'daily',
+    hubDate: new Date().toISOString().split('T')[0],
+    hubRange: null,
+
     // FILTERS
     filters: { text: '', recruiter: '', tech: '', status: '' },
     hubFilters: { text: '', recruiter: '' },
     onbFilters: { text: '' }, 
-    // SELECTION (No more pagination logic needed for display)
-    selection: { cand: new Set(), onb: new Set() },
+    empFilters: { text: '' },
+    
+    // SELECTION
+    selection: { cand: new Set(), onb: new Set(), emp: new Set() },
+    
     modal: { id: null, type: null },
     pendingDelete: { type: null },
     metadata: {
@@ -63,6 +74,7 @@ const dom = {
         dashboard: document.getElementById('view-dashboard'),
         candidates: document.getElementById('view-candidates'),
         hub: document.getElementById('view-hub'),
+        employees: document.getElementById('view-employees'),
         onboarding: document.getElementById('view-onboarding'),
         settings: document.getElementById('view-settings'),
         profile: document.getElementById('view-profile')
@@ -71,6 +83,7 @@ const dom = {
     tables: {
         cand: { body: document.getElementById('table-body'), head: document.getElementById('table-head') },
         hub: { body: document.getElementById('hub-table-body'), head: document.getElementById('hub-table-head') },
+        emp: { body: document.getElementById('employee-table-body'), head: document.getElementById('employee-table-head') },
         onb: { body: document.getElementById('onboarding-table-body'), head: document.getElementById('onboarding-table-head') }
     },
     modal: {
@@ -104,12 +117,17 @@ function init() {
                 const email = user.email.toLowerCase();
                 const knownUser = ALLOWED_USERS[email];
                 state.userRole = knownUser ? knownUser.role : 'Admin';
-                
+             
                 updateUserProfile(user, knownUser);
                 switchScreen('app');
                 initRealtimeListeners();
+             
+                // START AUTO LOGOUT TIMER
+                startAutoLogoutTimer();
             } else {
                 switchScreen('auth');
+                // STOP AUTO LOGOUT TIMER
+                stopAutoLogoutTimer();
             }
         });
     } catch (err) {
@@ -155,7 +173,7 @@ dom.navItems.forEach(btn => {
         Object.values(dom.views).forEach(view => view.classList.remove('active'));
         const targetId = clickedBtn.getAttribute('data-target');
         const targetView = document.getElementById(targetId);
-        
+     
         if (targetView) {
             targetView.classList.add('active');
             if (targetId === 'view-dashboard') updateDashboardStats();
@@ -164,29 +182,46 @@ dom.navItems.forEach(btn => {
     });
 });
 
-function updateUserProfile(user, userData) {
+function updateUserProfile(user, hardcodedData) {
     if (!user) return;
-    const displayName = userData ? userData.name : (user.displayName || 'Staff Member');
-    const role = userData ? userData.role : 'Viewer';
 
+    // 1. Basic Display (Header)
+    const displayName = hardcodedData ? hardcodedData.name : (user.displayName || 'Staff Member');
+    const role = hardcodedData ? hardcodedData.role : 'Viewer';
+   
     // Header Pill
     const headerUser = document.getElementById('display-username');
     if (headerUser) { headerUser.innerText = displayName; headerUser.style.display = 'block'; }
-
-    // Profile Page Elements
+   
+    // Profile Page Header
     const nameDisplay = document.getElementById('prof-name-display');
     const roleDisplay = document.getElementById('prof-role-display');
-    const emailInput = document.getElementById('prof-email');
-    const userInput = document.getElementById('prof-username');
-    const loginInput = document.getElementById('prof-last-login');
-
     if (nameDisplay) nameDisplay.innerText = displayName;
     if (roleDisplay) roleDisplay.innerText = role;
-    if (emailInput) emailInput.value = user.email;
-    if (userInput) userInput.value = user.email.split('@')[0].toUpperCase();
-    if (loginInput && user.metadata) loginInput.value = new Date(user.metadata.lastSignInTime).toLocaleString();
 
-    // Avatar
+    // 2. Official Read-Only Fields
+    if(document.getElementById('prof-office-email')) document.getElementById('prof-office-email').value = user.email;
+    if(document.getElementById('prof-designation')) document.getElementById('prof-designation').value = role; // Using Role as Designation
+
+    // 3. Load Editable Data from Firestore
+    db.collection('users').doc(user.email).get().then(doc => {
+        if (doc.exists) {
+            const data = doc.data();
+            if(document.getElementById('prof-first')) document.getElementById('prof-first').value = data.firstName || '';
+            if(document.getElementById('prof-last')) document.getElementById('prof-last').value = data.lastName || '';
+            if(document.getElementById('prof-work-mobile')) document.getElementById('prof-work-mobile').value = data.workMobile || '';
+            if(document.getElementById('prof-personal-mobile')) document.getElementById('prof-personal-mobile').value = data.personalMobile || '';
+            if(document.getElementById('prof-personal-email')) document.getElementById('prof-personal-email').value = data.personalEmail || '';
+            if(document.getElementById('prof-sheet')) document.getElementById('prof-sheet').value = data.trackingSheet || '';
+        } else {
+            // If no saved data, try to split the Display Name
+            const names = displayName.split(' ');
+            if(document.getElementById('prof-first')) document.getElementById('prof-first').value = names[0] || '';
+            if(document.getElementById('prof-last')) document.getElementById('prof-last').value = names.slice(1).join(' ') || '';
+        }
+    });
+
+    // 4. Avatar logic
     const avatarImg = document.getElementById('profile-main-img');
     const avatarPlaceholder = document.getElementById('profile-main-icon');
     if (user.photoURL && avatarImg) {
@@ -198,20 +233,41 @@ function updateUserProfile(user, userData) {
 
 function refreshProfileData() {
     const user = firebase.auth().currentUser;
-    const knownUser = ALLOWED_USERS[user?.email];
-    if(user) updateUserProfile(user, knownUser);
+    if(user) {
+        const knownUser = ALLOWED_USERS[user.email.toLowerCase()];
+        updateUserProfile(user, knownUser);
+    }
 }
+
+window.saveProfileData = () => {
+    const user = firebase.auth().currentUser;
+    if (!user) return;
+
+    const profileData = {
+        firstName: document.getElementById('prof-first').value,
+        lastName: document.getElementById('prof-last').value,
+        workMobile: document.getElementById('prof-work-mobile').value,
+        personalMobile: document.getElementById('prof-personal-mobile').value,
+        personalEmail: document.getElementById('prof-personal-email').value,
+        trackingSheet: document.getElementById('prof-sheet').value,
+        lastUpdated: firebase.firestore.FieldValue.serverTimestamp()
+    };
+
+    db.collection('users').doc(user.email).set(profileData, { merge: true })
+        .then(() => showToast("Profile Saved Successfully"))
+        .catch(err => showToast("Error Saving: " + err.message));
+};
 
 /* ========================================================
    7. REAL-TIME DATA
    ======================================================== */
 function initRealtimeListeners() {
-    // Infinite Scroll: Listen to ALL changes, sorted by date
     db.collection('candidates').orderBy('createdAt', 'desc').onSnapshot(snap => {
         state.candidates = [];
         snap.forEach(doc => state.candidates.push({ id: doc.id, ...doc.data() }));
         renderCandidateTable();
-        renderHubTable();
+        // Trigger Hub Stats to refresh table with correct filters
+        if(window.updateHubStats) window.updateHubStats(state.hubFilterType, state.hubDate);
         updateDashboardStats();
         if(dom.headerUpdated) dom.headerUpdated.innerText = 'Synced';
     });
@@ -219,6 +275,11 @@ function initRealtimeListeners() {
         state.onboarding = [];
         snap.forEach(doc => state.onboarding.push({ id: doc.id, ...doc.data() }));
         renderOnboardingTable();
+    });
+    db.collection('employees').orderBy('createdAt', 'desc').onSnapshot(snap => {
+        state.employees = [];
+        snap.forEach(doc => state.employees.push({ id: doc.id, ...doc.data() }));
+        renderEmployeeTable();
     });
 }
 
@@ -230,7 +291,7 @@ function renderCandidateTable() {
     const filtered = getFilteredData(state.candidates, state.filters);
     const headers = ['<input type="checkbox" id="select-all-cand" onclick="toggleSelectAll(\'cand\', this)">', '#', 'First Name', 'Last Name', 'Mobile', 'WhatsApp', 'Tech', 'Recruiter', 'Status', 'Assigned', 'Gmail', 'LinkedIn', 'Resume', 'Track', 'Comments'];
     dom.tables.cand.head.innerHTML = `<tr>${headers.map(h => `<th>${h}</th>`).join('')}</tr>`;
-    
+   
     // UPDATE COUNT
     const footerCount = document.getElementById('cand-footer-count');
     if(footerCount) footerCount.innerText = `Showing ${filtered.length} records`;
@@ -239,11 +300,11 @@ function renderCandidateTable() {
         const idx = i + 1;
         const isSel = state.selection.cand.has(c.id) ? 'checked' : '';
         const rowClass = state.selection.cand.has(c.id) ? 'selected-row' : '';
-        
+       
         let statusStyle = "";
         if(c.status === 'Active') statusStyle = 'active';
         else statusStyle = 'inactive';
-        
+       
         return `
         <tr class="${rowClass}">
             <td><input type="checkbox" ${isSel} onchange="toggleSelect('${c.id}', 'cand')"></td>
@@ -261,18 +322,18 @@ function renderCandidateTable() {
                 </select>
             </td>
             <td><input type="date" class="date-input-modern" value="${c.assigned}" onchange="inlineDateEdit('${c.id}', 'assigned', 'candidates', this.value)"></td>
-            
+           
             <td class="url-cell" onclick="inlineUrlEdit('${c.id}', 'gmail', 'candidates', this)">${c.gmail ? 'Gmail' : ''}</td>
             <td class="url-cell" onclick="inlineUrlEdit('${c.id}', 'linkedin', 'candidates', this)">${c.linkedin ? 'LinkedIn' : ''}</td>
             <td class="url-cell" onclick="inlineUrlEdit('${c.id}', 'resume', 'candidates', this)">${c.resume ? 'Resume' : ''}</td>
             <td class="url-cell" onclick="inlineUrlEdit('${c.id}', 'track', 'candidates', this)">${c.track ? 'Tracker' : ''}</td>
-            
+           
             <td onclick="inlineEdit('${c.id}', 'comments', 'candidates', this)">${c.comments || '-'}</td>
         </tr>`;
     }).join('');
 }
 
-// --- HUB TABLE ---
+// --- HUB TABLE RENDERER ---
 function renderHubTable() {
     const filtered = state.candidates.filter(c => {
         const matchesText = (c.first + ' ' + c.last).toLowerCase().includes(state.hubFilters.text);
@@ -280,23 +341,161 @@ function renderHubTable() {
         return matchesText && matchesRec;
     });
 
-    const headers = ['#', 'Name', 'Recruiter', 'Tech', 'Submissions', 'Screenings', 'Interviews', 'Last Activity'];
-    
+    const headers = ['#', 'Name', 'Recruiter', 'Tech', 'Sub', 'Scr', 'Int', 'Last Activity'];
     dom.tables.hub.head.innerHTML = `<tr>${headers.map(h => `<th>${h}</th>`).join('')}</tr>`;
     
-    // UPDATE COUNT
     const footerCount = document.getElementById('hub-footer-count');
     if(footerCount) footerCount.innerText = `Showing ${filtered.length} records`;
 
+    // 1. DETERMINE ROW DETAILS RANGE (Strictly the SELECTED DATE)
+    // The user requested: "in the row show selected date show details for the selected date only"
+    const selectedDate = new Date(state.hubDate);
+    const rowStart = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), selectedDate.getDate()).getTime();
+    const rowEnd = rowStart + 86400000; // End of that specific day
+
     dom.tables.hub.body.innerHTML = filtered.map((c, i) => {
         const idx = i + 1;
-        let lastAct = '-'; 
-        if(c.interviewLog && c.interviewLog.length) lastAct = c.interviewLog.sort().reverse()[0];
-        return `<tr><td>${idx}</td><td>${c.first} ${c.last}</td><td>${c.recruiter || '-'}</td><td style="color:var(--primary);">${c.tech}</td>
-            <td class="text-cyan" style="font-weight:bold; cursor:pointer" onclick="openModal('${c.id}', 'submissionLog', '${c.first}')">${(c.submissionLog||[]).length}</td>
-            <td class="text-gold" style="font-weight:bold; cursor:pointer" onclick="openModal('${c.id}', 'screeningLog', '${c.first}')">${(c.screeningLog||[]).length}</td>
-            <td class="text-cyan" style="font-weight:bold; cursor:pointer" onclick="openModal('${c.id}', 'interviewLog', '${c.first}')">${(c.interviewLog||[]).length}</td>
-            <td>${lastAct}</td></tr>`;
+        let lastAct = (c.interviewLog && c.interviewLog.length) ? c.interviewLog.sort().reverse()[0] : '-';
+        
+        // Filter Logs for Display in the Expanded Row (Only show logs for selected date)
+        const filterLogs = (logs) => (logs || []).filter(d => {
+            const t = new Date(d).getTime();
+            return t >= rowStart && t < rowEnd;
+        }).sort().reverse();
+
+        const subs = filterLogs(c.submissionLog);
+        const scrs = filterLogs(c.screeningLog);
+        const ints = filterLogs(c.interviewLog);
+
+        // Stats in Main Row: Show TOTALS for quick overview
+        const totalSubs = (c.submissionLog||[]).length;
+        const totalScrs = (c.screeningLog||[]).length;
+        const totalInts = (c.interviewLog||[]).length;
+
+        // Check if this row is expanded
+        const isExpanded = state.expandedRowId === c.id;
+        const activeClass = isExpanded ? 'background: rgba(6, 182, 212, 0.1); border-left: 3px solid var(--primary);' : '';
+
+        // Main Row HTML
+        let html = `
+        <tr style="cursor:pointer; ${activeClass}" onclick="toggleHubRow('${c.id}')">
+            <td>${idx}</td>
+            <td><span style="font-weight:600">${c.first} ${c.last}</span></td>
+            <td>${c.recruiter || '-'}</td>
+            <td style="color:var(--primary);">${c.tech}</td>
+            <td class="text-cyan" style="font-weight:bold;">${totalSubs}</td>
+            <td class="text-gold" style="font-weight:bold;">${totalScrs}</td>
+            <td class="text-purple" style="font-weight:bold;">${totalInts}</td>
+            <td style="font-size:0.8rem; color:var(--text-muted)">${lastAct}</td>
+        </tr>`;
+
+        // Expanded Details Row HTML
+        if(isExpanded) {
+            const inputDefault = state.hubDate; // Default input date is selected date
+            
+            // Helper to generate list with Edit/Delete buttons
+            const renderTimeline = (list, fieldName) => {
+                if(list.length === 0) return `<li class="hub-log-item" style="justify-content:center; opacity:0.5; padding-left:0;">No records for selected date</li>`;
+                
+                return list.map(dateStr => {
+                    const dateObj = new Date(dateStr);
+                    const niceDate = dateObj.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+                    
+                    return `
+                    <li class="hub-log-item">
+                        <span class="log-date">${niceDate}</span>
+                        <div class="hub-log-actions">
+                            <button class="hub-action-btn" title="Edit Date" onclick="editHubLog('${c.id}', '${fieldName}', '${dateStr}')">
+                                <i class="fa-solid fa-pen"></i>
+                            </button>
+                            <button class="hub-action-btn delete" title="Delete Log" onclick="deleteHubLog('${c.id}', '${fieldName}', '${dateStr}')">
+                                <i class="fa-solid fa-trash"></i>
+                            </button>
+                        </div>
+                    </li>`;
+                }).join('');
+            };
+
+            html += `
+            <tr class="hub-details-row">
+                <td colspan="8">
+                    <div class="hub-details-wrapper" onclick="event.stopPropagation()">
+                        
+                        <div class="hub-col cyan">
+                            <div class="hub-col-header cyan"><i class="fa-solid fa-paper-plane"></i> Submissions <span style="float:right; opacity:0.5">${subs.length} today</span></div>
+                            <div class="hub-input-group">
+                                <input type="date" id="input-sub-${c.id}" value="${inputDefault}">
+                                <button class="btn btn-primary" onclick="addHubLog('${c.id}', 'submissionLog', 'input-sub-${c.id}')">Add</button>
+                            </div>
+                            <ul class="hub-log-list custom-scroll">${renderTimeline(subs, 'submissionLog')}</ul>
+                        </div>
+
+                        <div class="hub-col gold">
+                            <div class="hub-col-header gold"><i class="fa-solid fa-user-clock"></i> Screenings <span style="float:right; opacity:0.5">${scrs.length} today</span></div>
+                            <div class="hub-input-group">
+                                <input type="date" id="input-scr-${c.id}" value="${inputDefault}">
+                                <button class="btn btn-primary" style="background:#f59e0b;" onclick="addHubLog('${c.id}', 'screeningLog', 'input-scr-${c.id}')">Add</button>
+                            </div>
+                            <ul class="hub-log-list custom-scroll">${renderTimeline(scrs, 'screeningLog')}</ul>
+                        </div>
+
+                        <div class="hub-col purple">
+                            <div class="hub-col-header purple"><i class="fa-solid fa-headset"></i> Interviews <span style="float:right; opacity:0.5">${ints.length} today</span></div>
+                            <div class="hub-input-group">
+                                <input type="date" id="input-int-${c.id}" value="${inputDefault}">
+                                <button class="btn btn-primary" style="background:#8b5cf6;" onclick="addHubLog('${c.id}', 'interviewLog', 'input-int-${c.id}')">Add</button>
+                            </div>
+                            <ul class="hub-log-list custom-scroll">${renderTimeline(ints, 'interviewLog')}</ul>
+                        </div>
+
+                    </div>
+                </td>
+            </tr>`;
+        }
+
+        return html;
+    }).join('');
+}
+
+// --- EMPLOYEE TABLE ---
+function renderEmployeeTable() {
+    const filtered = state.employees.filter(item => {
+        const searchText = state.empFilters.text;
+        const fullName = (item.first + ' ' + item.last).toLowerCase();
+        return fullName.includes(searchText);
+    });
+
+    const headers = [
+        '<input type="checkbox" id="select-all-emp" onclick="toggleSelectAll(\'emp\', this)">', 
+        '#', 'First Name', 'Last Name', 'Designation', 
+        'Work Mobile', 'Personal Mobile', 'Official Email', 'Personal Email', 'Tracking Sheet'
+    ];
+    
+    dom.tables.emp.head.innerHTML = `<tr>${headers.map(h => `<th>${h}</th>`).join('')}</tr>`;
+
+    // UPDATE COUNT
+    const footerCount = document.getElementById('emp-footer-count');
+    if(footerCount) footerCount.innerText = `Showing ${filtered.length} records`;
+
+    dom.tables.emp.body.innerHTML = filtered.map((c, i) => {
+        const idx = i + 1;
+        const isSel = state.selection.emp.has(c.id) ? 'checked' : '';
+        const rowClass = state.selection.emp.has(c.id) ? 'selected-row' : '';
+        
+        return `
+        <tr class="${rowClass}">
+            <td><input type="checkbox" ${isSel} onchange="toggleSelect('${c.id}', 'emp')"></td>
+            <td>${idx}</td>
+            <td onclick="inlineEdit('${c.id}', 'first', 'employees', this)">${c.first}</td>
+            <td onclick="inlineEdit('${c.id}', 'last', 'employees', this)">${c.last}</td>
+            <td onclick="inlineEdit('${c.id}', 'designation', 'employees', this)">${c.designation || '-'}</td>
+            <td onclick="inlineEdit('${c.id}', 'workMobile', 'employees', this)">${c.workMobile || '-'}</td>
+            <td onclick="inlineEdit('${c.id}', 'personalMobile', 'employees', this)">${c.personalMobile || '-'}</td>
+            
+            <td class="url-cell" onclick="inlineEdit('${c.id}', 'officialEmail', 'employees', this)">${c.officialEmail || ''}</td>
+            <td class="url-cell" onclick="inlineEdit('${c.id}', 'personalEmail', 'employees', this)">${c.personalEmail || ''}</td>
+            <td class="url-cell" onclick="inlineUrlEdit('${c.id}', 'trackingSheet', 'employees', this)">${c.trackingSheet ? 'View Sheet' : ''}</td>
+        </tr>`;
     }).join('');
 }
 
@@ -361,21 +560,24 @@ function inlineEdit(id, field, collection, el) {
 
 function inlineUrlEdit(id, field, collection, el) {
     if(el.querySelector('input')) return;
-    
+   
     el.innerHTML = ''; el.classList.add('editing-cell');
     const input = document.createElement('input'); 
     input.type = 'url'; 
     input.placeholder = 'Paste Link Here...';
     input.className = 'inline-input-active';
-    
+   
     const save = () => { 
         let newVal = input.value.trim(); 
         if(newVal && !newVal.startsWith('http')) newVal = 'https://' + newVal; 
-        el.innerHTML = newVal ? 'Saved' : '';
+        
+        if (field === 'trackingSheet') el.innerHTML = newVal ? 'View Sheet' : '';
+        else el.innerHTML = newVal ? 'Saved' : '';
+        
         el.classList.remove('editing-cell'); 
         db.collection(collection).doc(id).update({ [field]: newVal }); 
     };
-    
+   
     input.addEventListener('blur', save); 
     input.addEventListener('keydown', (e) => { if (e.key === 'Enter') input.blur(); });
     el.appendChild(input); 
@@ -405,21 +607,42 @@ window.toggleSelect = (id, type) => {
 window.toggleSelectAll = (type, mainCheckbox) => {
     const isChecked = mainCheckbox.checked;
     let currentData = [];
+    
     if (type === 'cand') currentData = getFilteredData(state.candidates, state.filters);
+    else if (type === 'emp') { 
+        const searchText = state.empFilters.text;
+        currentData = state.employees.filter(item => (item.first + ' ' + item.last).toLowerCase().includes(searchText));
+    }
     else { 
         const searchText = state.onbFilters.text;
         currentData = state.onboarding.filter(item => (item.first + ' ' + item.last).toLowerCase().includes(searchText));
     }
+
     currentData.forEach(item => { if (isChecked) state.selection[type].add(item.id); else state.selection[type].delete(item.id); });
     updateSelectButtons(type);
-    if (type === 'cand') renderCandidateTable(); else renderOnboardingTable();
-    setTimeout(() => { const newMaster = document.getElementById(type === 'cand' ? 'select-all-cand' : 'select-all-onb'); if(newMaster) newMaster.checked = isChecked; }, 0);
+    
+    if (type === 'cand') renderCandidateTable(); 
+    else if (type === 'emp') renderEmployeeTable();
+    else renderOnboardingTable();
+    
+    setTimeout(() => { 
+        const newMaster = document.getElementById(`select-all-${type}`); 
+        if(newMaster) newMaster.checked = isChecked; 
+    }, 0);
 };
 
 function updateSelectButtons(type) {
-    const btn = type === 'cand' ? document.getElementById('btn-delete-selected') : document.getElementById('btn-delete-onboarding');
-    const countSpan = type === 'cand' ? document.getElementById('selected-count') : document.getElementById('onboarding-selected-count');
-    if (state.selection[type].size > 0) { btn.style.display = 'inline-flex'; if (countSpan) countSpan.innerText = state.selection[type].size; } else { btn.style.display = 'none'; }
+    let btn, countSpan;
+    if(type === 'cand') { btn = document.getElementById('btn-delete-selected'); countSpan = document.getElementById('selected-count'); }
+    else if(type === 'emp') { btn = document.getElementById('btn-delete-employee'); countSpan = document.getElementById('emp-selected-count'); }
+    else { btn = document.getElementById('btn-delete-onboarding'); countSpan = document.getElementById('onboarding-selected-count'); }
+
+    if (state.selection[type].size > 0) { 
+        btn.style.display = 'inline-flex'; 
+        if (countSpan) countSpan.innerText = state.selection[type].size; 
+    } else { 
+        btn.style.display = 'none'; 
+    }
 }
 
 /* ========================================================
@@ -428,7 +651,7 @@ function updateSelectButtons(type) {
 function setupEventListeners() {
     document.getElementById('btn-logout').addEventListener('click', () => auth.signOut());
     document.getElementById('theme-toggle').addEventListener('click', () => { document.body.classList.toggle('light-mode'); localStorage.setItem('np_theme', document.body.classList.contains('light-mode') ? 'light' : 'dark'); });
-    
+   
     // Auth
     window.handleLogin = () => { const e = document.getElementById('login-email').value, p = document.getElementById('login-pass').value; auth.signInWithEmailAndPassword(e, p).catch(err => showToast(cleanError(err.message))); };
     window.handleSignup = () => { const n = document.getElementById('reg-name').value, e = document.getElementById('reg-email').value, p = document.getElementById('reg-pass').value; auth.createUserWithEmailAndPassword(e, p).then(r => r.user.updateProfile({displayName:n})).then(u=>{firebase.auth().currentUser.sendEmailVerification();showToast("Check Email!");switchAuth('login');}).catch(err => showToast(cleanError(err.message))); };
@@ -438,7 +661,7 @@ function setupEventListeners() {
 
     // Seed
     document.getElementById('btn-seed-data').addEventListener('click', window.seedData);
-    
+   
     // Candidate Filters
     document.getElementById('search-input').addEventListener('input', e => { state.filters.text = e.target.value.toLowerCase(); renderCandidateTable(); });
     document.getElementById('filter-recruiter').addEventListener('change', e => { state.filters.recruiter = e.target.value; renderCandidateTable(); });
@@ -446,7 +669,7 @@ function setupEventListeners() {
     document.querySelectorAll('.btn-toggle').forEach(btn => { btn.addEventListener('click', e => { document.querySelectorAll('.btn-toggle').forEach(b => b.classList.remove('active')); e.target.classList.add('active'); state.filters.status = e.target.dataset.status; renderCandidateTable(); }); });
     document.getElementById('btn-reset-filters').addEventListener('click', () => { document.getElementById('search-input').value = ''; document.getElementById('filter-recruiter').value = ''; document.getElementById('filter-tech').value = ''; document.querySelectorAll('.btn-toggle').forEach(b => b.classList.remove('active')); document.querySelector('.btn-toggle[data-status=""]').classList.add('active'); state.filters = { text: '', recruiter: '', tech: '', status: '' }; renderCandidateTable(); showToast("Filters refreshed"); });
 
-    // Hub Filter (New)
+    // Hub Filter
     document.getElementById('hub-search-input').addEventListener('input', e => { state.hubFilters.text = e.target.value.toLowerCase(); renderHubTable(); });
     const hubRecSelect = document.getElementById('hub-filter-recruiter');
     if(hubRecSelect) { hubRecSelect.addEventListener('change', (e) => { state.hubFilters.recruiter = e.target.value; renderHubTable(); }); }
@@ -455,13 +678,107 @@ function setupEventListeners() {
     const onbSearch = document.getElementById('onb-search-input');
     if(onbSearch) { onbSearch.addEventListener('input', e => { state.onbFilters.text = e.target.value.toLowerCase(); renderOnboardingTable(); }); }
 
+    // Employee Filters
+    const empSearch = document.getElementById('emp-search-input');
+    if(empSearch) { empSearch.addEventListener('input', e => { state.empFilters.text = e.target.value.toLowerCase(); renderEmployeeTable(); }); }
+
     // Add Buttons
     document.getElementById('btn-add-candidate').addEventListener('click', () => { db.collection('candidates').add({ first: '', last: '', mobile: '', wa: '', tech: '', recruiter: '', status: 'Active', assigned: new Date().toISOString().split('T')[0], comments: '', createdAt: Date.now(), submissionLog: [], screeningLog: [], interviewLog: [] }).then(() => showToast("Inserted")); });
     document.getElementById('btn-add-onboarding').addEventListener('click', () => { db.collection('onboarding').add({ first: '', last: '', mobile: '', status: 'Onboarding', assigned: new Date().toISOString().split('T')[0], comments: '', createdAt: Date.now() }).then(() => showToast("Inserted")); });
+    
+    document.getElementById('btn-add-employee').addEventListener('click', () => { 
+        db.collection('employees').add({ 
+            first: '', last: '', designation: '', 
+            workMobile: '', personalMobile: '', 
+            officialEmail: '', personalEmail: '', trackingSheet: '',
+            createdAt: Date.now() 
+        }).then(() => showToast("Employee Added")); 
+    });
 
     // Delete Buttons
     document.getElementById('btn-delete-selected').addEventListener('click', () => openDeleteModal('cand'));
     document.getElementById('btn-delete-onboarding').addEventListener('click', () => openDeleteModal('onb'));
+    document.getElementById('btn-delete-employee').addEventListener('click', () => openDeleteModal('emp'));
+
+    // --- MOBILE SIDEBAR LOGIC ---
+    const mobileBtn = document.getElementById('btn-mobile-menu');
+    const sidebar = document.querySelector('.sidebar');
+    const overlay = document.getElementById('sidebar-overlay');
+    const navLinks = document.querySelectorAll('.nav-item');
+
+    // Toggle Open
+    if(mobileBtn) {
+        mobileBtn.addEventListener('click', () => {
+            sidebar.classList.toggle('mobile-open');
+            overlay.classList.toggle('active');
+        });
+    }
+
+    // Close when clicking overlay
+    if(overlay) {
+        overlay.addEventListener('click', () => {
+            sidebar.classList.remove('mobile-open');
+            overlay.classList.remove('active');
+        });
+    }
+
+    // Close when clicking a nav link (for better UX)
+    navLinks.forEach(link => {
+        link.addEventListener('click', () => {
+            if(window.innerWidth <= 900) {
+                sidebar.classList.remove('mobile-open');
+                overlay.classList.remove('active');
+            }
+        });
+    });
+
+    // --- HUB EVENT LISTENERS ---
+    const hubPicker = document.getElementById('hub-date-picker');
+    if(hubPicker) {
+        // Set default value
+        hubPicker.value = new Date().toISOString().split('T')[0];
+        
+        // Listen for date change
+        hubPicker.addEventListener('change', (e) => {
+            updateHubStats(null, e.target.value);
+        });
+    }
+
+    // Listen for Filter Buttons (Daily/Weekly/Monthly)
+    document.querySelectorAll('.filter-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            updateHubStats(btn.getAttribute('data-filter'), null);
+        });
+    });
+
+    // Initialize Hub Stats on Load
+    setTimeout(() => { if(window.updateHubStats) updateHubStats('daily', new Date().toISOString().split('T')[0]); }, 1000);
+
+    // Wallpaper Changer Logic
+    const wallpaperBtn = document.getElementById('change-wallpaper-btn');
+    const wallpapers = [
+        "", // Default (CSS variable)
+        "linear-gradient(to right, #243949 0%, #517fa4 100%)", // Corporate Blue
+        "linear-gradient(109.6deg, rgb(20, 30, 48) 11.2%, rgb(36, 59, 85) 91.1%)", // Deep Night
+        "linear-gradient(to top, #30cfd0 0%, #330867 100%)", // Accent
+        "linear-gradient(to right, #434343 0%, black 100%)" // Pitch Dark
+    ];
+    let wpIndex = 0;
+
+    if(wallpaperBtn) {
+        wallpaperBtn.addEventListener('click', () => {
+            wpIndex++;
+            if(wpIndex >= wallpapers.length) wpIndex = 0;
+            
+            if(wpIndex === 0) {
+                // Reset to default CSS theme
+                document.body.style.background = ""; 
+            } else {
+                // Apply new gradient
+                document.body.style.background = wallpapers[wpIndex];
+            }
+        });
+    }
 }
 
 /* ========================================================
@@ -485,7 +802,22 @@ function renderModalContent() { const c = state.candidates.find(x => x.id === st
 
 window.openDeleteModal = (type) => { const count = state.selection[type].size; if (count === 0) return; state.pendingDelete.type = type; document.getElementById('del-count').innerText = count; document.getElementById('delete-modal').style.display = 'flex'; };
 window.closeDeleteModal = () => { document.getElementById('delete-modal').style.display = 'none'; state.pendingDelete.type = null; };
-window.executeDelete = () => { const type = state.pendingDelete.type; if (!type) return; const collection = type === 'cand' ? 'candidates' : 'onboarding'; state.selection[type].forEach(id => { db.collection(collection).doc(id).delete(); }); state.selection[type].clear(); updateSelectButtons(type); showToast("Items Deleted"); closeDeleteModal(); };
+
+window.executeDelete = () => { 
+    const type = state.pendingDelete.type; 
+    if (!type) return; 
+    
+    // Determine collection name
+    let collection = 'candidates';
+    if(type === 'onb') collection = 'onboarding';
+    if(type === 'emp') collection = 'employees';
+
+    state.selection[type].forEach(id => { db.collection(collection).doc(id).delete(); }); 
+    state.selection[type].clear(); 
+    updateSelectButtons(type); 
+    showToast("Items Deleted"); 
+    closeDeleteModal(); 
+};
 
 window.exportData = () => { if (state.candidates.length === 0) return showToast("No data"); const headers = ["ID", "First", "Last", "Mobile", "Tech", "Recruiter", "Status", "Date", "Comments"]; const csvRows = [headers.join(",")]; state.candidates.forEach(c => { const row = [c.id, `"${c.first}"`, `"${c.last}"`, `"${c.mobile}"`, `"${c.tech}"`, `"${c.recruiter}"`, `"${c.status}"`, c.assigned, `"${(c.comments || '').replace(/"/g, '""')}"`]; csvRows.push(row.join(",")); }); const blob = new Blob([csvRows.join("\n")], { type: "text/csv" }); const url = window.URL.createObjectURL(blob); const a = document.createElement("a"); a.href = url; a.download = "candidates.csv"; a.click(); };
 
@@ -519,6 +851,239 @@ function renderChart(id, data, type) {
     const colors = ['#06b6d4', '#f59e0b', '#8b5cf6', '#22c55e', '#ef4444', '#ec4899', '#6366f1'];
     chartInstances[id] = new Chart(context, { type: type, data: { labels: data.labels, datasets: [{ label: 'Candidates', data: data.data, backgroundColor: colors, borderColor: 'rgba(0,0,0,0.1)', borderWidth: 1, borderRadius: 4, barThickness: 20 }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: type === 'doughnut', position: 'right', labels: { color: '#94a3b8', font: { size: 11 } } } }, scales: { y: { display: type === 'bar', grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#94a3b8' } }, x: { display: type === 'bar', grid: { display: false }, ticks: { color: '#94a3b8' } } } } }); 
 }
+
+/* ========================================================
+   13. SECURITY: AUTO LOGOUT
+   ======================================================== */
+let inactivityTimer;
+
+function startAutoLogoutTimer() {
+    // 10 Minutes in milliseconds (10 * 60 * 1000)
+    const TIMEOUT_DURATION = 10 * 60 * 1000; 
+
+    function resetTimer() {
+        if (!firebase.auth().currentUser) return; // Stop if not logged in
+
+        clearTimeout(inactivityTimer);
+       
+        inactivityTimer = setTimeout(() => {
+            firebase.auth().signOut().then(() => {
+                showToast("Session expired due to inactivity");
+                switchScreen('auth');
+            });
+        }, TIMEOUT_DURATION);
+    }
+
+    // List of events that count as "activity"
+    const activityEvents = ['mousemove', 'keydown', 'click', 'scroll', 'touchstart'];
+
+    // Attach listeners to reset the timer on any of these events
+    activityEvents.forEach(event => {
+        document.addEventListener(event, resetTimer);
+    });
+
+    // Start the timer immediately
+    resetTimer();
+}
+
+function stopAutoLogoutTimer() {
+    clearTimeout(inactivityTimer);
+}
+
+/* ========================================================
+   14. HUB DATE & FILTER LOGIC (UPDATED)
+   ======================================================== */
+
+// Initialize Hub Date State
+state.hubDate = new Date().toISOString().split('T')[0]; // Default: Today
+state.hubFilterType = 'daily'; // Default: Daily
+
+// Main Logic: Calculate Range & Update UI
+window.updateHubStats = (filterType, dateVal) => {
+    // Update State
+    if(filterType) state.hubFilterType = filterType;
+    if(dateVal) state.hubDate = dateVal;
+
+    // Update UI Buttons
+    document.querySelectorAll('.filter-btn').forEach(btn => {
+        if(btn.dataset.filter === state.hubFilterType) btn.classList.add('active');
+        else btn.classList.remove('active');
+    });
+
+    // Update Date Picker Value
+    const picker = document.getElementById('hub-date-picker');
+    if(picker && picker.value !== state.hubDate) picker.value = state.hubDate;
+
+    // --- CALCULATE DATE RANGE (UPDATED LOGIC) ---
+    const d = new Date(state.hubDate);
+    let startTimestamp, endTimestamp;
+    let labelText = "";
+
+    if (state.hubFilterType === 'daily') {
+        // Selected Date only
+        startTimestamp = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+        endTimestamp = startTimestamp + 86400000; 
+        
+        labelText = d.toLocaleDateString('en-US', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+    } 
+    else if (state.hubFilterType === 'weekly') {
+        // MONDAY to FRIDAY of selected week
+        const day = d.getDay(); 
+        const distanceToMon = day === 0 ? 6 : day - 1; // if sun(0)->6, mon(1)->0, tue(2)->1
+        
+        const monday = new Date(d);
+        monday.setDate(d.getDate() - distanceToMon); // Set to Monday
+        
+        const friday = new Date(monday);
+        friday.setDate(monday.getDate() + 4); // Set to Friday
+
+        // Start Monday 00:00:00
+        startTimestamp = new Date(monday.getFullYear(), monday.getMonth(), monday.getDate()).getTime();
+        // End Friday 23:59:59 (so basically Saturday 00:00:00)
+        endTimestamp = new Date(friday.getFullYear(), friday.getMonth(), friday.getDate()).getTime() + 86400000;
+
+        labelText = `${monday.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - ${friday.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`;
+    } 
+    else if (state.hubFilterType === 'monthly') {
+        // Start of Month to End of Month
+        startTimestamp = new Date(d.getFullYear(), d.getMonth(), 1).getTime();
+        // Last day of month
+        const lastDay = new Date(d.getFullYear(), d.getMonth() + 1, 0);
+        endTimestamp = lastDay.getTime() + 86400000;
+
+        const firstDayStr = new Date(d.getFullYear(), d.getMonth(), 1).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+        const lastDayStr = lastDay.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+
+        labelText = `${firstDayStr} - ${lastDayStr}`;
+    }
+
+    // Save range to state for Table Renderer to use
+    state.hubRange = { start: startTimestamp, end: endTimestamp };
+
+    // Update Header Text
+    const labelEl = document.getElementById('hub-range-label');
+    if(labelEl) labelEl.innerHTML = `<i class="fa-regular fa-calendar"></i> &nbsp; ${labelText}`;
+
+    // --- CALCULATE STATS ---
+    let subCount = 0, scrCount = 0, intCount = 0;
+
+    if(state.candidates) {
+        state.candidates.forEach(c => {
+            if(c.submissionLog) c.submissionLog.forEach(d => { const t = new Date(d).getTime(); if(t >= startTimestamp && t < endTimestamp) subCount++; });
+            if(c.screeningLog) c.screeningLog.forEach(d => { const t = new Date(d).getTime(); if(t >= startTimestamp && t < endTimestamp) scrCount++; });
+            if(c.interviewLog) c.interviewLog.forEach(d => { const t = new Date(d).getTime(); if(t >= startTimestamp && t < endTimestamp) intCount++; });
+        });
+    }
+
+    animateValue('stat-sub', subCount);
+    animateValue('stat-scr', scrCount);
+    animateValue('stat-int', intCount);
+
+    // Refresh Table to Apply Filter to Rows
+    renderHubTable();
+};
+
+function animateValue(id, end) {
+    const obj = document.getElementById(id);
+    if(!obj) return;
+    const start = parseInt(obj.innerText) || 0;
+    if(start === end) return;
+    
+    let current = start;
+    const range = end - start;
+    const increment = end > start ? 1 : -1;
+    const stepTime = Math.abs(Math.floor(500 / range));
+    
+    const timer = setInterval(() => {
+        current += increment;
+        obj.innerText = current;
+        if (current == end) clearInterval(timer);
+    }, range === 0 ? 0 : (stepTime || 10));
+}
+
+// --- HUB ACTIONS (Row Toggle, Add, Edit, Delete) ---
+window.toggleHubRow = (id) => {
+    // If clicking the same row, close it. If different, open the new one.
+    if(state.expandedRowId === id) {
+        state.expandedRowId = null;
+    } else {
+        state.expandedRowId = id;
+    }
+    renderHubTable();
+};
+
+window.addHubLog = (id, fieldName, inputId) => {
+    const dateVal = document.getElementById(inputId).value;
+    if(!dateVal) return showToast("Please select a date");
+
+    const candidate = state.candidates.find(c => c.id === id);
+    if(!candidate) return;
+
+    let logs = candidate[fieldName] || [];
+    logs.push(dateVal);
+    
+    // Sort logs descending (newest first)
+    logs.sort().reverse();
+
+    db.collection('candidates').doc(id).update({
+        [fieldName]: logs
+    }).then(() => {
+        showToast("Log Added!");
+    }).catch(err => showToast("Error: " + err.message));
+};
+
+// DELETE LOG
+window.deleteHubLog = (id, fieldName, dateToDelete) => {
+    if(!confirm("Are you sure you want to delete this log entry?")) return;
+
+    const candidate = state.candidates.find(c => c.id === id);
+    if(!candidate) return;
+
+    let logs = candidate[fieldName] || [];
+    const index = logs.indexOf(dateToDelete);
+    if (index > -1) {
+        logs.splice(index, 1); // Remove only one instance
+    }
+
+    db.collection('candidates').doc(id).update({
+        [fieldName]: logs
+    }).then(() => {
+        showToast("Log Deleted");
+    }).catch(err => showToast("Error: " + err.message));
+};
+
+// EDIT LOG
+window.editHubLog = (id, fieldName, oldDate) => {
+    const newDate = prompt("Update Log Date (YYYY-MM-DD):", oldDate);
+    
+    if(newDate && newDate !== oldDate) {
+        // Simple regex check for YYYY-MM-DD format validity
+        if(!/^\d{4}-\d{2}-\d{2}$/.test(newDate)) {
+            return showToast("Invalid Date Format. Use YYYY-MM-DD");
+        }
+
+        const candidate = state.candidates.find(c => c.id === id);
+        if(!candidate) return;
+
+        let logs = candidate[fieldName] || [];
+        
+        // Remove old date
+        const index = logs.indexOf(oldDate);
+        if (index > -1) logs.splice(index, 1);
+        
+        // Add new date
+        logs.push(newDate);
+        
+        // Sort
+        logs.sort().reverse();
+
+        db.collection('candidates').doc(id).update({
+            [fieldName]: logs
+        }).then(() => {
+            showToast("Log Updated");
+        }).catch(err => showToast("Error: " + err.message));
+    }
+};
 
 // START
 document.addEventListener('DOMContentLoaded', init);
