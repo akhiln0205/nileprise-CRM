@@ -388,15 +388,43 @@ body { margin: 0; font-family: 'Inter', sans-serif; background-color: var(--bg-a
 .search-box input, .filter-box select { width: 100%; background: var(--input-bg); border: 1px solid var(--glass-border); padding: 8px 8px 8px 35px; border-radius: 8px; color: var(--text-main); height: 38px; font-size: 0.85rem; }
 .filter-box select option { background: var(--bg-app); color: var(--text-main); }
 
-/* MODERN TABLE STYLES */
-.table-container { flex: 1; background: var(--glass-bg); border: 1px solid var(--glass-border); border-radius: 16px; display: flex; flex-direction: column; overflow: hidden; margin-bottom: 0; box-shadow: 0 10px 30px rgba(0,0,0,0.2); }
-.table-wrapper { flex: 1; overflow-y: auto; height: calc(100vh - 250px); position: relative; scrollbar-width: thin; scrollbar-color: var(--primary) rgba(0,0,0,0.2); }
+/* MODERN TABLE STYLES - FLEX FIX */
+.table-container { 
+    flex: 1; 
+    background: var(--glass-bg); 
+    border: 1px solid var(--glass-border); 
+    border-radius: 16px; 
+    display: flex; 
+    flex-direction: column; 
+    overflow: hidden; 
+    margin-bottom: 0; 
+    box-shadow: 0 10px 30px rgba(0,0,0,0.2); 
+    min-height: 0; 
+}
+.table-wrapper { 
+    flex: 1; 
+    overflow-y: auto; 
+    position: relative; 
+    scrollbar-width: thin; 
+    scrollbar-color: var(--primary) rgba(0,0,0,0.2); 
+    height: auto; /* Allow flex to manage height */
+}
 .table-wrapper::-webkit-scrollbar { width: 8px; height: 8px; }
 .table-wrapper::-webkit-scrollbar-track { background: rgba(0,0,0,0.2); }
 .table-wrapper::-webkit-scrollbar-thumb { background: var(--glass-border); border-radius: 4px; }
 .table-wrapper::-webkit-scrollbar-thumb:hover { background: var(--primary); }
 .modern-table { width: 100%; border-collapse: separate; border-spacing: 0; }
-th, td { padding: 14px 16px; text-align: center; border-bottom: 1px solid var(--glass-border); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; background: var(--table-row-bg); transition: none !important; vertical-align: middle; }
+th, td { 
+    padding: 14px 16px; 
+    text-align: center; 
+    border-bottom: 1px solid var(--glass-border); /* FIXED BORDER */
+    white-space: nowrap; 
+    overflow: hidden; 
+    text-overflow: ellipsis; 
+    background: var(--table-row-bg); 
+    transition: none !important; 
+    vertical-align: middle; 
+}
 
 /* PROFESSIONAL HEADER STYLING */
 thead th { position: sticky; top: 0; z-index: 100; background: var(--table-head-bg); padding: 16px; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 1px; border-bottom: 2px solid var(--primary); box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); color: var(--text-main); font-weight: 700; }
