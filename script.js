@@ -333,7 +333,7 @@ function renderCandidateTable() {
     }).join('');
 }
 
-// --- HUB TABLE RENDERER (Smart Row Filtering + Edit/Delete) ---
+// --- HUB TABLE RENDERER (Smart Row Filtering) ---
 function renderHubTable() {
     const filtered = state.candidates.filter(c => {
         const matchesText = (c.first + ' ' + c.last).toLowerCase().includes(state.hubFilters.text);
@@ -350,7 +350,7 @@ function renderHubTable() {
     if(footerCount) footerCount.innerText = `Showing ${filtered.length} records`;
 
     // 1. DETERMINE ROW DETAILS RANGE (Strictly the SELECTED DATE)
-    // "in the row show selected date show details for the selected date only"
+    // The user requested: "in the row show selected date show details for the selected date only"
     const selectedDate = new Date(state.hubDate);
     const rowStart = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), selectedDate.getDate()).getTime();
     const rowEnd = rowStart + 86400000; // End of that specific day
