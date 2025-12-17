@@ -342,8 +342,10 @@ function renderHubTable() {
     });
 
     const headers = ['#', 'Name', 'Recruiter', 'Tech', 'Sub', 'Scr', 'Int', 'Last Activity'];
+    
     dom.tables.hub.head.innerHTML = `<tr>${headers.map(h => `<th>${h}</th>`).join('')}</tr>`;
     
+    // UPDATE COUNT
     const footerCount = document.getElementById('hub-footer-count');
     if(footerCount) footerCount.innerText = `Showing ${filtered.length} records`;
 
@@ -422,7 +424,7 @@ function renderHubTable() {
                     <div class="hub-details-wrapper" onclick="event.stopPropagation()">
                         
                         <div class="hub-col cyan">
-                            <div class="hub-col-header cyan"><i class="fa-solid fa-paper-plane"></i> Submissions <span style="float:right; opacity:0.5">${subs.length} today</span></div>
+                            <div class="hub-col-header cyan"><i class="fa-solid fa-paper-plane"></i> Submissions</div>
                             <div class="hub-input-group">
                                 <input type="date" id="input-sub-${c.id}" value="${inputDefault}">
                                 <button class="btn btn-primary" onclick="addHubLog('${c.id}', 'submissionLog', 'input-sub-${c.id}')">Add</button>
@@ -431,7 +433,7 @@ function renderHubTable() {
                         </div>
 
                         <div class="hub-col gold">
-                            <div class="hub-col-header gold"><i class="fa-solid fa-user-clock"></i> Screenings <span style="float:right; opacity:0.5">${scrs.length} today</span></div>
+                            <div class="hub-col-header gold"><i class="fa-solid fa-user-clock"></i> Screenings</div>
                             <div class="hub-input-group">
                                 <input type="date" id="input-scr-${c.id}" value="${inputDefault}">
                                 <button class="btn btn-primary" style="background:#f59e0b;" onclick="addHubLog('${c.id}', 'screeningLog', 'input-scr-${c.id}')">Add</button>
@@ -440,7 +442,7 @@ function renderHubTable() {
                         </div>
 
                         <div class="hub-col purple">
-                            <div class="hub-col-header purple"><i class="fa-solid fa-headset"></i> Interviews <span style="float:right; opacity:0.5">${ints.length} today</span></div>
+                            <div class="hub-col-header purple"><i class="fa-solid fa-headset"></i> Interviews</div>
                             <div class="hub-input-group">
                                 <input type="date" id="input-int-${c.id}" value="${inputDefault}">
                                 <button class="btn btn-primary" style="background:#8b5cf6;" onclick="addHubLog('${c.id}', 'interviewLog', 'input-int-${c.id}')">Add</button>
