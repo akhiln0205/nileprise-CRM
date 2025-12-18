@@ -8,6 +8,7 @@
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/postal-mime/dist/browser/postal-mime.js"></script>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -23,6 +24,8 @@
     <span id="toast-msg">Notification</span>
   </div>
 
+  <input type="file" id="hub-file-input" accept=".eml,.msg" style="display:none;" onchange="handleHubFileSelect(this)">
+
   <div id="app" class="app-container">
 
     <div id="sidebar-overlay" class="sidebar-overlay"></div>
@@ -31,7 +34,7 @@
       <div class="glass-panel auth-box">
         <div class="brand-large"><span class="text-cyan">N</span><span class="text-white">ILE</span><span class="text-gold">PRISE</span></div>
         <p class="subtitle">Next Innovative Leading Enterprises</p>
-        
+       
         <div id="form-login" class="auth-form active">
             <h3 class="form-title">Secure Portal Login</h3>
             <div class="input-group">
@@ -103,7 +106,7 @@
     </section>
 
     <section id="dashboard-screen" class="screen">
-      
+     
       <aside class="sidebar glass-panel">
         <div class="brand-small"><span class="text-cyan">NILE</span><span class="text-white">PRISE</span> <span class="text-gold">CRM</span></div>
         <nav class="nav-menu">
@@ -118,7 +121,14 @@
       </aside>
 
       <main class="main-content">
-        
+       
+        <div id="birthday-bar" class="birthday-bar" style="display: none;">
+            <div class="ticker-wrap">
+                <div id="birthday-ticker-content" class="ticker-move">
+                    </div>
+            </div>
+        </div>
+
         <header class="top-bar">
           <button id="btn-mobile-menu" class="btn-icon" style="margin-right: 10px; display: none;">
             <i class="fa-solid fa-bars"></i>
@@ -131,7 +141,7 @@
                 <span id="header-updated" class="value text-success">Active</span>
             </div>
             <div class="v-divider"></div>
-            
+           
             <div class="admin-pill">
               <span id="display-username" style="display:none; margin-right: 10px; font-size:0.9rem; font-weight:600;"></span>
               <button id="theme-toggle" class="btn-icon" style="margin-right: 10px;"><i class="fa-solid fa-sun"></i></button>
@@ -225,7 +235,7 @@
         </div>
 
         <div id="view-hub" class="content-view">
-          
+         
           <div class="glass-panel" style="padding: 20px; margin-bottom: 20px; flex-shrink: 0;">
             <div class="hub-header-row">
               <div class="hub-title-block">
@@ -234,7 +244,7 @@
                     <i class="fa-regular fa-calendar"></i> Loading...
                 </div>
               </div>
-              
+             
               <div class="hub-controls">
                 <div class="custom-date-wrapper">
                     <input type="date" id="hub-date-picker" class="hub-date-input">
@@ -247,7 +257,7 @@
                   <button class="filter-btn" data-filter="weekly">Weekly</button>
                   <button class="filter-btn" data-filter="monthly">Monthly</button>
                 </div>
-                
+               
                 <div class="v-divider" style="height:25px; margin:0 5px;"></div>
                 <button id="change-wallpaper-btn" class="btn-icon" title="Change Wallpaper"><i class="fa-solid fa-image"></i></button>
               </div>
@@ -341,101 +351,101 @@
         </div>
 
         <div id="view-profile" class="content-view">
-            <div class="glass-panel profile-container">
+            <div class="profile-layout">
                
-                <div class="profile-header">
-                <div class="profile-banner"></div>
-                <div class="profile-info-block">
-                    <div class="profile-avatar-wrapper">
-                    <img id="profile-main-img" src="" class="avatar-img" style="display:none;">
-                    <div id="profile-main-icon" class="avatar-placeholder"><i class="fa-solid fa-user"></i></div>
+                <div class="profile-sidebar glass-panel">
+                    <div class="profile-identity">
+                        <div class="profile-avatar-wrapper">
+                            <img id="profile-main-img" src="" class="avatar-img" style="display:none;">
+                            <div id="profile-main-icon" class="avatar-placeholder"><i class="fa-solid fa-user"></i></div>
+                           
+                            <div id="avatar-loading" class="avatar-loading">
+                                <i class="fa-solid fa-circle-notch fa-spin"></i>
+                            </div>
+
+                            <input type="file" id="profile-upload-input" accept="image/*" style="display: none;" onchange="handlePhotoUpload(this)">
+
+                            <div class="avatar-actions">
+                                <button class="btn-avatar-action upload" onclick="triggerPhotoUpload()" title="Change Photo">
+                                    <i class="fa-solid fa-camera"></i>
+                                </button>
+                                <button id="btn-delete-photo" class="btn-avatar-action delete" onclick="deleteProfilePhoto()" title="Remove Photo" style="display: none;">
+                                    <i class="fa-solid fa-trash"></i>
+                                </button>
+                            </div>
+                        </div>
+                       
+                        <h2 id="prof-name-display">Loading...</h2>
+                        <p id="prof-role-display" class="role-badge">Staff Member</p>
+                       
+                        <div class="profile-meta">
+                            <span><i class="fa-solid fa-envelope"></i> <span id="prof-email-display-sidebar">...</span></span>
+                        </div>
                     </div>
-                    <div class="profile-names">
-                    <h2 id="prof-name-display">Loading...</h2>
-                    <p id="prof-role-display" class="role">Staff Member</p>
-                    </div>
-                </div>
-                </div>
-
-                <div class="profile-body">
-               
-                <div style="display:flex; justify-content:flex-end; margin-bottom: 20px;">
-                    <button class="btn btn-primary" onclick="saveProfileData()">
-                    <i class="fa-solid fa-floppy-disk"></i> Save Changes
-                    </button>
-                </div>
-
-                <h3 style="color:var(--primary); margin-bottom:15px; font-size:1rem; border-bottom:1px solid var(--glass-border); padding-bottom:10px;">
-                    <i class="fa-solid fa-address-card"></i> Personal Details
-                </h3>
-
-                <div class="form-grid">
                    
-                    <div class="form-group">
-                    <label>First Name</label>
-                    <div class="input-group" style="margin:0;">
-                        <i class="fa-solid fa-user"></i>
-                        <input type="text" id="prof-first" placeholder="First Name">
+                    <div class="profile-actions-bottom">
+                        <button class="btn btn-primary btn-block" onclick="saveProfileData()">
+                            <i class="fa-solid fa-floppy-disk"></i> Save All Changes
+                        </button>
                     </div>
-                    </div>
-
-                    <div class="form-group">
-                    <label>Last Name</label>
-                    <div class="input-group" style="margin:0;">
-                        <i class="fa-solid fa-user"></i>
-                        <input type="text" id="prof-last" placeholder="Last Name">
-                    </div>
-                    </div>
-
-                    <div class="form-group">
-                    <label>Designation <small style="opacity:0.6">(Official)</small></label>
-                    <div class="input-group" style="margin:0;">
-                        <i class="fa-solid fa-briefcase"></i>
-                        <input type="text" id="prof-designation" readonly style="opacity:0.7; cursor:not-allowed; background:rgba(255,255,255,0.05);">
-                    </div>
-                    </div>
-
-                    <div class="form-group">
-                    <label>Work Mobile Number</label>
-                    <div class="input-group" style="margin:0;">
-                        <i class="fa-solid fa-mobile-screen-button"></i>
-                        <input type="tel" id="prof-work-mobile" placeholder="+1 (555) 000-0000">
-                    </div>
-                    </div>
-
-                    <div class="form-group">
-                    <label>Personal Mobile Number</label>
-                    <div class="input-group" style="margin:0;">
-                        <i class="fa-solid fa-phone"></i>
-                        <input type="tel" id="prof-personal-mobile" placeholder="+91 90000 00000">
-                    </div>
-                    </div>
-
-                    <div class="form-group">
-                    <label>Official Email ID <small style="opacity:0.6">(Read Only)</small></label>
-                    <div class="input-group" style="margin:0;">
-                        <i class="fa-solid fa-envelope"></i>
-                        <input type="email" id="prof-office-email" readonly style="opacity:0.7; cursor:not-allowed; background:rgba(255,255,255,0.05);">
-                    </div>
-                    </div>
-
-                    <div class="form-group">
-                    <label>Personal Email ID</label>
-                    <div class="input-group" style="margin:0;">
-                        <i class="fa-regular fa-envelope"></i>
-                        <input type="email" id="prof-personal-email" placeholder="personal@gmail.com">
-                    </div>
-                    </div>
-
-                    <div class="form-group">
-                    <label>Tracking Sheet URL</label>
-                    <div class="input-group" style="margin:0;">
-                        <i class="fa-solid fa-table"></i>
-                        <input type="url" id="prof-sheet" placeholder="https://docs.google.com/spreadsheets/...">
-                    </div>
-                    </div>
-
                 </div>
+
+                <div class="profile-main glass-panel">
+                   
+                    <div class="profile-section">
+                        <div class="section-header"><i class="fa-regular fa-id-card"></i> Personal Information</div>
+                        <div class="form-grid">
+                            <div class="form-group">
+                                <label>First Name</label>
+                                <input type="text" id="prof-first" class="profile-input" placeholder="First Name">
+                            </div>
+                            <div class="form-group">
+                                <label>Last Name</label>
+                                <input type="text" id="prof-last" class="profile-input" placeholder="Last Name">
+                            </div>
+                            <div class="form-group">
+                                <label>Date of Birth</label>
+                                <input type="date" id="prof-dob" class="profile-input">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="profile-section">
+                        <div class="section-header"><i class="fa-solid fa-phone"></i> Contact Details</div>
+                        <div class="form-grid">
+                            <div class="form-group">
+                                <label>Work Mobile</label>
+                                <input type="tel" id="prof-work-mobile" class="profile-input" placeholder="+1 (555) 000-0000">
+                            </div>
+                            <div class="form-group">
+                                <label>Personal Mobile</label>
+                                <input type="tel" id="prof-personal-mobile" class="profile-input" placeholder="+91 90000 00000">
+                            </div>
+                            <div class="form-group full-width">
+                                <label>Personal Email</label>
+                                <input type="email" id="prof-personal-email" class="profile-input" placeholder="personal@gmail.com">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="profile-section">
+                        <div class="section-header"><i class="fa-solid fa-briefcase"></i> Work & System</div>
+                        <div class="form-grid">
+                            <div class="form-group">
+                                <label>Designation <small>(Read Only)</small></label>
+                                <input type="text" id="prof-designation" class="profile-input readonly-input" readonly>
+                            </div>
+                            <div class="form-group">
+                                <label>Official Email <small>(Read Only)</small></label>
+                                <input type="email" id="prof-office-email" class="profile-input readonly-input" readonly>
+                            </div>
+                            <div class="form-group full-width">
+                                <label>Tracking Sheet URL</label>
+                                <input type="url" id="prof-sheet" class="profile-input" placeholder="https://docs.google.com/spreadsheets/...">
+                            </div>
+                        </div>
+                    </div>
+
                 </div>
             </div>
         </div>
@@ -481,9 +491,27 @@
     </div>
   </div>
 
+  <div id="email-viewer-modal" class="modal-overlay" style="z-index: 2000;">
+    <div class="glass-panel modal-box email-box">
+      <div class="email-modal-header">
+        <h3 class="email-subject" id="viewer-subject">Loading Subject...</h3>
+        <button class="btn-icon-small" onclick="closeEmailViewer()"><i class="fa-solid fa-times"></i></button>
+      </div>
+      <div class="email-meta-row">
+        <div id="viewer-from" class="email-meta-item"><b>From:</b> <span>...</span></div>
+        <div id="viewer-to" class="email-meta-item"><b>To:</b> <span>...</span></div>
+        <div id="viewer-date" class="email-meta-item" style="margin-left:auto; opacity:0.7;">...</div>
+      </div>
+      <div class="email-body-wrapper">
+        <iframe id="viewer-iframe" sandbox="allow-same-origin"></iframe>
+      </div>
+    </div>
+  </div>
+
   <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-storage-compat.js"></script>
   
   <script src="script.js"></script>
 </body>
