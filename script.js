@@ -14,9 +14,10 @@ const firebaseConfig = {
 try { firebase.initializeApp(firebaseConfig); } catch (e) { console.error("Firebase Init Error:", e); }
 const db = firebase.firestore();
 const auth = firebase.auth();
+const storage = firebase.storage();
 
 /* ========================================================
-   2. ACCESS CONTROL LIST
+   2. ACCESS CONTROL LIST 
    ======================================================== */
 const ALLOWED_USERS = {
     'ali@nileprise.com': { name: 'Asif', role: 'Employee' },
@@ -27,8 +28,7 @@ const ALLOWED_USERS = {
     'fma@nileprise.com': { name: 'Fayaz', role: 'Manager' },
     'an@nileprise.com': { name: 'Akhil', role: 'Manager' },
     'aman@nileprise.com': { name: 'Sanketh', role: 'Manager' },
-    'nikhil@nileprise.com': { name: 'Nikhil Rapolu', role: 'Admin' },
-    'admin@nileprise.com': { name: 'Admin', role: 'Admin' }
+    'careers@nileprise.com': { name: 'Nikhil Rapolu', role: 'Admin' },
 };
 
 /* ========================================================
@@ -40,12 +40,16 @@ const state = {
     candidates: [], 
     onboarding: [],
     employees: [],
+    allUsers: [],
     
     // HUB STATES
     expandedRowId: null,
     hubFilterType: 'daily',
     hubDate: new Date().toISOString().split('T')[0],
     hubRange: null,
+    
+    // Upload State
+    uploadTarget: { id: null, field: null },
 
     // FILTERS
     filters: { text: '', recruiter: '', tech: '', status: '' },
@@ -86,14 +90,13 @@ const dom = {
         emp: { body: document.getElementById('employee-table-body'), head: document.getElementById('employee-table-head') },
         onb: { body: document.getElementById('onboarding-table-body'), head: document.getElementById('onboarding-table-head') }
     },
-    modal: {
-        self: document.getElementById('activity-modal'),
-        title: document.getElementById('act-modal-title'),
-        week: document.getElementById('act-week'),
-        month: document.getElementById('act-month'),
-        total: document.getElementById('act-total'),
-        input: document.getElementById('act-date-input'),
-        list: document.getElementById('act-history-list')
+    emailViewer: {
+        modal: document.getElementById('email-viewer-modal'),
+        iframe: document.getElementById('viewer-iframe'),
+        subject: document.getElementById('viewer-subject'),
+        from: document.getElementById('viewer-from').querySelector('span'),
+        to: document.getElementById('viewer-to').querySelector('span'),
+        date: document.getElementById('viewer-date')
     }
 };
 
@@ -117,16 +120,15 @@ function init() {
                 const email = user.email.toLowerCase();
                 const knownUser = ALLOWED_USERS[email];
                 state.userRole = knownUser ? knownUser.role : 'Admin';
-             
+            
                 updateUserProfile(user, knownUser);
                 switchScreen('app');
                 initRealtimeListeners();
-             
+            
                 // START AUTO LOGOUT TIMER
                 startAutoLogoutTimer();
             } else {
                 switchScreen('auth');
-                // STOP AUTO LOGOUT TIMER
                 stopAutoLogoutTimer();
             }
         });
@@ -163,7 +165,6 @@ function cleanError(msg) {
 /* ========================================================
    6. PROFILE & NAVIGATION LOGIC
    ======================================================== */
-// NAVIGATION
 dom.navItems.forEach(btn => {
     btn.addEventListener('click', (e) => {
         dom.navItems.forEach(b => b.classList.remove('active'));
@@ -173,7 +174,7 @@ dom.navItems.forEach(btn => {
         Object.values(dom.views).forEach(view => view.classList.remove('active'));
         const targetId = clickedBtn.getAttribute('data-target');
         const targetView = document.getElementById(targetId);
-     
+    
         if (targetView) {
             targetView.classList.add('active');
             if (targetId === 'view-dashboard') updateDashboardStats();
@@ -184,51 +185,47 @@ dom.navItems.forEach(btn => {
 
 function updateUserProfile(user, hardcodedData) {
     if (!user) return;
-
-    // 1. Basic Display (Header)
     const displayName = hardcodedData ? hardcodedData.name : (user.displayName || 'Staff Member');
     const role = hardcodedData ? hardcodedData.role : 'Viewer';
-   
-    // Header Pill
+    
     const headerUser = document.getElementById('display-username');
     if (headerUser) { headerUser.innerText = displayName; headerUser.style.display = 'block'; }
-   
-    // Profile Page Header
+    
     const nameDisplay = document.getElementById('prof-name-display');
     const roleDisplay = document.getElementById('prof-role-display');
     if (nameDisplay) nameDisplay.innerText = displayName;
     if (roleDisplay) roleDisplay.innerText = role;
+    if(document.getElementById('prof-email-display-sidebar')) document.getElementById('prof-email-display-sidebar').innerText = user.email;
 
-    // 2. Official Read-Only Fields
     if(document.getElementById('prof-office-email')) document.getElementById('prof-office-email').value = user.email;
-    if(document.getElementById('prof-designation')) document.getElementById('prof-designation').value = role; // Using Role as Designation
+    if(document.getElementById('prof-designation')) document.getElementById('prof-designation').value = role; 
 
-    // 3. Load Editable Data from Firestore
     db.collection('users').doc(user.email).get().then(doc => {
         if (doc.exists) {
             const data = doc.data();
             if(document.getElementById('prof-first')) document.getElementById('prof-first').value = data.firstName || '';
             if(document.getElementById('prof-last')) document.getElementById('prof-last').value = data.lastName || '';
+            if(document.getElementById('prof-dob')) document.getElementById('prof-dob').value = data.dob || ''; 
             if(document.getElementById('prof-work-mobile')) document.getElementById('prof-work-mobile').value = data.workMobile || '';
             if(document.getElementById('prof-personal-mobile')) document.getElementById('prof-personal-mobile').value = data.personalMobile || '';
             if(document.getElementById('prof-personal-email')) document.getElementById('prof-personal-email').value = data.personalEmail || '';
             if(document.getElementById('prof-sheet')) document.getElementById('prof-sheet').value = data.trackingSheet || '';
+           
+            let photoURL = data.photoURL || user.photoURL;
+            if(photoURL) {
+                const avatarImg = document.getElementById('profile-main-img');
+                const avatarPlaceholder = document.getElementById('profile-main-icon');
+                const deleteBtn = document.getElementById('btn-delete-photo');
+                if(avatarImg) { avatarImg.src = photoURL; avatarImg.style.display = 'block'; }
+                if(avatarPlaceholder) avatarPlaceholder.style.display = 'none';
+                if(deleteBtn) deleteBtn.style.display = 'flex';
+            }
         } else {
-            // If no saved data, try to split the Display Name
             const names = displayName.split(' ');
             if(document.getElementById('prof-first')) document.getElementById('prof-first').value = names[0] || '';
             if(document.getElementById('prof-last')) document.getElementById('prof-last').value = names.slice(1).join(' ') || '';
         }
     });
-
-    // 4. Avatar logic
-    const avatarImg = document.getElementById('profile-main-img');
-    const avatarPlaceholder = document.getElementById('profile-main-icon');
-    if (user.photoURL && avatarImg) {
-        avatarImg.src = user.photoURL;
-        avatarImg.style.display = 'block';
-        if(avatarPlaceholder) avatarPlaceholder.style.display = 'none';
-    }
 }
 
 function refreshProfileData() {
@@ -246,6 +243,7 @@ window.saveProfileData = () => {
     const profileData = {
         firstName: document.getElementById('prof-first').value,
         lastName: document.getElementById('prof-last').value,
+        dob: document.getElementById('prof-dob').value, 
         workMobile: document.getElementById('prof-work-mobile').value,
         personalMobile: document.getElementById('prof-personal-mobile').value,
         personalEmail: document.getElementById('prof-personal-email').value,
@@ -262,11 +260,10 @@ window.saveProfileData = () => {
    7. REAL-TIME DATA
    ======================================================== */
 function initRealtimeListeners() {
-    db.collection('candidates').orderBy('createdAt', 'desc').onSnapshot(snap => {
+    db.collection('candidates').orderBy('createdAt', 'desc').limit(200).onSnapshot(snap => {
         state.candidates = [];
         snap.forEach(doc => state.candidates.push({ id: doc.id, ...doc.data() }));
         renderCandidateTable();
-        // Trigger Hub Stats to refresh table with correct filters
         if(window.updateHubStats) window.updateHubStats(state.hubFilterType, state.hubDate);
         updateDashboardStats();
         if(dom.headerUpdated) dom.headerUpdated.innerText = 'Synced';
@@ -281,18 +278,51 @@ function initRealtimeListeners() {
         snap.forEach(doc => state.employees.push({ id: doc.id, ...doc.data() }));
         renderEmployeeTable();
     });
+    
+    db.collection('users').onSnapshot(snap => {
+        state.allUsers = [];
+        snap.forEach(doc => {
+            const data = doc.data();
+            const fullName = (data.firstName && data.lastName) 
+                             ? `${data.firstName} ${data.lastName}` 
+                             : (data.displayName || 'Staff Member');
+            state.allUsers.push({ id: doc.id, name: fullName, dob: data.dob });
+        });
+        checkBirthdays();
+    });
 }
+
+window.checkBirthdays = () => {
+    const today = new Date();
+    const currentMonth = String(today.getMonth() + 1).padStart(2, '0');
+    const currentDay = String(today.getDate()).padStart(2, '0');
+    const todayMatch = `${currentMonth}-${currentDay}`;
+
+    const birthdayPeople = state.allUsers.filter(user => {
+        if (!user.dob) return false;
+        const userBorn = user.dob.substring(5); // YYYY-MM-DD -> MM-DD
+        return userBorn === todayMatch;
+    });
+
+    const bar = document.getElementById('birthday-bar');
+    const content = document.getElementById('birthday-ticker-content');
+
+    if (birthdayPeople.length > 0) {
+        const html = birthdayPeople.map(u => `<span class="birthday-item"><i class="fa-solid fa-cake-candles"></i> Happy Birthday, ${u.name}! 🎉</span>`).join('');
+        content.innerHTML = html + html + html; 
+        bar.style.display = 'flex';
+    } else {
+        bar.style.display = 'none';
+    }
+};
 
 /* ========================================================
    8. RENDERERS
    ======================================================== */
-// --- CANDIDATES TABLE ---
 function renderCandidateTable() {
     const filtered = getFilteredData(state.candidates, state.filters);
     const headers = ['<input type="checkbox" id="select-all-cand" onclick="toggleSelectAll(\'cand\', this)">', '#', 'First Name', 'Last Name', 'Mobile', 'WhatsApp', 'Tech', 'Recruiter', 'Status', 'Assigned', 'Gmail', 'LinkedIn', 'Resume', 'Track', 'Comments'];
     dom.tables.cand.head.innerHTML = `<tr>${headers.map(h => `<th>${h}</th>`).join('')}</tr>`;
-   
-    // UPDATE COUNT
     const footerCount = document.getElementById('cand-footer-count');
     if(footerCount) footerCount.innerText = `Showing ${filtered.length} records`;
 
@@ -333,7 +363,6 @@ function renderCandidateTable() {
     }).join('');
 }
 
-// --- HUB TABLE RENDERER ---
 function renderHubTable() {
     const filtered = state.candidates.filter(c => {
         const matchesText = (c.first + ' ' + c.last).toLowerCase().includes(state.hubFilters.text);
@@ -341,28 +370,33 @@ function renderHubTable() {
         return matchesText && matchesRec;
     });
 
-    const headers = ['#', 'Name', 'Recruiter', 'Tech', 'Sub', 'Scr', 'Int', 'Last Activity'];
+    const headers = ['#', 'Name', 'Recruiter', 'Tech', 'Submissions', 'Screenings', 'Interviews', 'Last Activity'];
     
     dom.tables.hub.head.innerHTML = `<tr>${headers.map(h => `<th>${h}</th>`).join('')}</tr>`;
     
-    // UPDATE COUNT
     const footerCount = document.getElementById('hub-footer-count');
     if(footerCount) footerCount.innerText = `Showing ${filtered.length} records`;
 
-    // 1. DETERMINE ROW DETAILS RANGE (Strictly the SELECTED DATE)
     const selectedDate = new Date(state.hubDate);
     const rowStart = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), selectedDate.getDate()).getTime();
-    const rowEnd = rowStart + 86400000; // End of that specific day
+    const rowEnd = rowStart + 86400000; 
 
     dom.tables.hub.body.innerHTML = filtered.map((c, i) => {
         const idx = i + 1;
-        let lastAct = (c.interviewLog && c.interviewLog.length) ? c.interviewLog.sort().reverse()[0] : '-';
         
-        // Filter Logs for Display in the Expanded Row (Only show logs for selected date)
-        const filterLogs = (logs) => (logs || []).filter(d => {
-            const t = new Date(d).getTime();
+        const checkDateInRange = (entry) => {
+            const dStr = (typeof entry === 'string') ? entry : entry.date;
+            const t = new Date(dStr).getTime();
             return t >= rowStart && t < rowEnd;
-        }).sort().reverse();
+        };
+
+        const filterLogs = (logs) => (logs || []).filter(checkDateInRange);
+        
+        let lastActDate = '-';
+        if (c.interviewLog && c.interviewLog.length > 0) {
+            const lastEntry = c.interviewLog[0];
+            lastActDate = (typeof lastEntry === 'string') ? lastEntry : lastEntry.date;
+        }
 
         const subs = filterLogs(c.submissionLog);
         const scrs = filterLogs(c.screeningLog);
@@ -372,11 +406,9 @@ function renderHubTable() {
         const totalScrs = (c.screeningLog||[]).length;
         const totalInts = (c.interviewLog||[]).length;
 
-        // Check if this row is expanded
         const isExpanded = state.expandedRowId === c.id;
         const activeClass = isExpanded ? 'background: rgba(6, 182, 212, 0.1); border-left: 3px solid var(--primary);' : '';
 
-        // Main Row HTML
         let html = `
         <tr style="cursor:pointer; ${activeClass}" onclick="toggleHubRow('${c.id}')">
             <td>${idx}</td>
@@ -386,29 +418,45 @@ function renderHubTable() {
             <td class="text-cyan" style="font-weight:bold;">${totalSubs}</td>
             <td class="text-gold" style="font-weight:bold;">${totalScrs}</td>
             <td class="text-purple" style="font-weight:bold;">${totalInts}</td>
-            <td style="font-size:0.8rem; color:var(--text-muted)">${lastAct}</td>
+            <td style="font-size:0.8rem; color:var(--text-muted)">${lastActDate}</td>
         </tr>`;
 
-        // Expanded Details Row HTML
         if(isExpanded) {
-            const inputDefault = state.hubDate; // Default input date is selected date
+            const inputDefault = state.hubDate; 
             
-            // Helper to generate list with Edit/Delete buttons
             const renderTimeline = (list, fieldName) => {
-                if(list.length === 0) return `<li class="hub-log-item" style="justify-content:center; opacity:0.5; padding-left:0;">No records for selected date</li>`;
+                if(!list || list.length === 0) return `<li class="hub-log-item" style="justify-content:center; opacity:0.5; padding-left:0;">No records for selected date</li>`;
                 
-                return list.map(dateStr => {
+                return list.map((entry, index) => {
+                    const isLegacy = typeof entry === 'string';
+                    const dateStr = isLegacy ? entry : entry.date;
+                    const link = isLegacy ? '' : entry.link;
                     const dateObj = new Date(dateStr);
-                    const niceDate = dateObj.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+                    const niceDate = dateObj.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
                     
+                    let linkHtml = '';
+                    if(link) {
+                        const isEmail = link.includes('firebasestorage') || link.endsWith('.eml');
+                        const icon = isEmail ? 'fa-envelope-open-text' : 'fa-arrow-up-right-from-square';
+                        const clickAction = isEmail ? `onclick="viewEmailLog('${link}')"` : `href="${link}" target="_blank"`;
+                        const btnClass = isEmail ? 'hub-link-btn is-email' : 'hub-link-btn';
+                        
+                        // If it's email, use button, if link, use anchor
+                        if(isEmail) {
+                             linkHtml = `<button class="${btnClass}" ${clickAction} title="Open Email"><i class="fa-solid ${icon}"></i></button>`;
+                        } else {
+                             linkHtml = `<a ${clickAction} class="${btnClass}" title="Open Link"><i class="fa-solid ${icon}"></i></a>`;
+                        }
+                    }
+
                     return `
                     <li class="hub-log-item">
-                        <span class="log-date">${niceDate}</span>
+                        <div style="display:flex; align-items:center; gap:8px;">
+                            <span class="log-date">${niceDate}</span>
+                            ${linkHtml}
+                        </div>
                         <div class="hub-log-actions">
-                            <button class="hub-action-btn" title="Edit Date" onclick="editHubLog('${c.id}', '${fieldName}', '${dateStr}')">
-                                <i class="fa-solid fa-pen"></i>
-                            </button>
-                            <button class="hub-action-btn delete" title="Delete Log" onclick="deleteHubLog('${c.id}', '${fieldName}', '${dateStr}')">
+                            <button class="hub-action-btn delete" title="Delete Log" onclick="deleteHubLog('${c.id}', '${fieldName}', ${index})">
                                 <i class="fa-solid fa-trash"></i>
                             </button>
                         </div>
@@ -420,11 +468,12 @@ function renderHubTable() {
             <tr class="hub-details-row">
                 <td colspan="8">
                     <div class="hub-details-wrapper" onclick="event.stopPropagation()">
-                        
+                       
                         <div class="hub-col cyan">
                             <div class="hub-col-header cyan"><i class="fa-solid fa-paper-plane"></i> Submissions <span style="float:right; opacity:0.5">${subs.length} today</span></div>
                             <div class="hub-input-group">
                                 <input type="date" id="input-sub-${c.id}" value="${inputDefault}">
+                                <button class="hub-attach-btn" title="Attach EML File" onclick="triggerHubFileUpload('${c.id}', 'submissionLog')"><i class="fa-solid fa-paperclip"></i></button>
                                 <button class="btn btn-primary" onclick="addHubLog('${c.id}', 'submissionLog', 'input-sub-${c.id}')">Add</button>
                             </div>
                             <ul class="hub-log-list custom-scroll">${renderTimeline(subs, 'submissionLog')}</ul>
@@ -434,6 +483,7 @@ function renderHubTable() {
                             <div class="hub-col-header gold"><i class="fa-solid fa-user-clock"></i> Screenings <span style="float:right; opacity:0.5">${scrs.length} today</span></div>
                             <div class="hub-input-group">
                                 <input type="date" id="input-scr-${c.id}" value="${inputDefault}">
+                                <button class="hub-attach-btn" title="Attach EML File" onclick="triggerHubFileUpload('${c.id}', 'screeningLog')"><i class="fa-solid fa-paperclip"></i></button>
                                 <button class="btn btn-primary" style="background:#f59e0b;" onclick="addHubLog('${c.id}', 'screeningLog', 'input-scr-${c.id}')">Add</button>
                             </div>
                             <ul class="hub-log-list custom-scroll">${renderTimeline(scrs, 'screeningLog')}</ul>
@@ -443,6 +493,7 @@ function renderHubTable() {
                             <div class="hub-col-header purple"><i class="fa-solid fa-headset"></i> Interviews <span style="float:right; opacity:0.5">${ints.length} today</span></div>
                             <div class="hub-input-group">
                                 <input type="date" id="input-int-${c.id}" value="${inputDefault}">
+                                <button class="hub-attach-btn" title="Attach EML File" onclick="triggerHubFileUpload('${c.id}', 'interviewLog')"><i class="fa-solid fa-paperclip"></i></button>
                                 <button class="btn btn-primary" style="background:#8b5cf6;" onclick="addHubLog('${c.id}', 'interviewLog', 'input-int-${c.id}')">Add</button>
                             </div>
                             <ul class="hub-log-list custom-scroll">${renderTimeline(ints, 'interviewLog')}</ul>
@@ -452,12 +503,10 @@ function renderHubTable() {
                 </td>
             </tr>`;
         }
-
         return html;
     }).join('');
 }
 
-// --- EMPLOYEE TABLE ---
 function renderEmployeeTable() {
     const filtered = state.employees.filter(item => {
         const searchText = state.empFilters.text;
@@ -473,7 +522,6 @@ function renderEmployeeTable() {
     
     dom.tables.emp.head.innerHTML = `<tr>${headers.map(h => `<th>${h}</th>`).join('')}</tr>`;
 
-    // UPDATE COUNT
     const footerCount = document.getElementById('emp-footer-count');
     if(footerCount) footerCount.innerText = `Showing ${filtered.length} records`;
 
@@ -481,7 +529,7 @@ function renderEmployeeTable() {
         const idx = i + 1;
         const isSel = state.selection.emp.has(c.id) ? 'checked' : '';
         const rowClass = state.selection.emp.has(c.id) ? 'selected-row' : '';
-        
+       
         return `
         <tr class="${rowClass}">
             <td><input type="checkbox" ${isSel} onchange="toggleSelect('${c.id}', 'emp')"></td>
@@ -491,7 +539,7 @@ function renderEmployeeTable() {
             <td onclick="inlineEdit('${c.id}', 'designation', 'employees', this)">${c.designation || '-'}</td>
             <td onclick="inlineEdit('${c.id}', 'workMobile', 'employees', this)">${c.workMobile || '-'}</td>
             <td onclick="inlineEdit('${c.id}', 'personalMobile', 'employees', this)">${c.personalMobile || '-'}</td>
-            
+           
             <td class="url-cell" onclick="inlineEdit('${c.id}', 'officialEmail', 'employees', this)">${c.officialEmail || ''}</td>
             <td class="url-cell" onclick="inlineEdit('${c.id}', 'personalEmail', 'employees', this)">${c.personalEmail || ''}</td>
             <td class="url-cell" onclick="inlineUrlEdit('${c.id}', 'trackingSheet', 'employees', this)">${c.trackingSheet ? 'View Sheet' : ''}</td>
@@ -499,7 +547,6 @@ function renderEmployeeTable() {
     }).join('');
 }
 
-// --- ONBOARDING TABLE ---
 function renderOnboardingTable() {
     const filtered = state.onboarding.filter(item => {
         const searchText = state.onbFilters.text;
@@ -511,7 +558,6 @@ function renderOnboardingTable() {
     const headers = ['<input type="checkbox" id="select-all-onb" onclick="toggleSelectAll(\'onb\', this)">', '#', 'First Name', 'Last Name', 'Recruiter', 'Mobile', 'Status', 'Assigned', 'Comments'];
     dom.tables.onb.head.innerHTML = `<tr>${headers.map(h => `<th>${h}</th>`).join('')}</tr>`;
 
-    // UPDATE COUNT
     const footerCount = document.getElementById('onb-footer-count');
     if(footerCount) footerCount.innerText = `Showing ${filtered.length} records`;
 
@@ -560,24 +606,19 @@ function inlineEdit(id, field, collection, el) {
 
 function inlineUrlEdit(id, field, collection, el) {
     if(el.querySelector('input')) return;
-   
     el.innerHTML = ''; el.classList.add('editing-cell');
     const input = document.createElement('input'); 
     input.type = 'url'; 
     input.placeholder = 'Paste Link Here...';
     input.className = 'inline-input-active';
-   
     const save = () => { 
         let newVal = input.value.trim(); 
         if(newVal && !newVal.startsWith('http')) newVal = 'https://' + newVal; 
-        
         if (field === 'trackingSheet') el.innerHTML = newVal ? 'View Sheet' : '';
         else el.innerHTML = newVal ? 'Saved' : '';
-        
         el.classList.remove('editing-cell'); 
         db.collection(collection).doc(id).update({ [field]: newVal }); 
     };
-   
     input.addEventListener('blur', save); 
     input.addEventListener('keydown', (e) => { if (e.key === 'Enter') input.blur(); });
     el.appendChild(input); 
@@ -607,7 +648,6 @@ window.toggleSelect = (id, type) => {
 window.toggleSelectAll = (type, mainCheckbox) => {
     const isChecked = mainCheckbox.checked;
     let currentData = [];
-    
     if (type === 'cand') currentData = getFilteredData(state.candidates, state.filters);
     else if (type === 'emp') { 
         const searchText = state.empFilters.text;
@@ -617,14 +657,11 @@ window.toggleSelectAll = (type, mainCheckbox) => {
         const searchText = state.onbFilters.text;
         currentData = state.onboarding.filter(item => (item.first + ' ' + item.last).toLowerCase().includes(searchText));
     }
-
     currentData.forEach(item => { if (isChecked) state.selection[type].add(item.id); else state.selection[type].delete(item.id); });
     updateSelectButtons(type);
-    
     if (type === 'cand') renderCandidateTable(); 
     else if (type === 'emp') renderEmployeeTable();
     else renderOnboardingTable();
-    
     setTimeout(() => { 
         const newMaster = document.getElementById(`select-all-${type}`); 
         if(newMaster) newMaster.checked = isChecked; 
@@ -636,7 +673,6 @@ function updateSelectButtons(type) {
     if(type === 'cand') { btn = document.getElementById('btn-delete-selected'); countSpan = document.getElementById('selected-count'); }
     else if(type === 'emp') { btn = document.getElementById('btn-delete-employee'); countSpan = document.getElementById('emp-selected-count'); }
     else { btn = document.getElementById('btn-delete-onboarding'); countSpan = document.getElementById('onboarding-selected-count'); }
-
     if (state.selection[type].size > 0) { 
         btn.style.display = 'inline-flex'; 
         if (countSpan) countSpan.innerText = state.selection[type].size; 
@@ -651,17 +687,23 @@ function updateSelectButtons(type) {
 function setupEventListeners() {
     document.getElementById('btn-logout').addEventListener('click', () => auth.signOut());
     document.getElementById('theme-toggle').addEventListener('click', () => { document.body.classList.toggle('light-mode'); localStorage.setItem('np_theme', document.body.classList.contains('light-mode') ? 'light' : 'dark'); });
-   
+    
     // Auth
     window.handleLogin = () => { const e = document.getElementById('login-email').value, p = document.getElementById('login-pass').value; auth.signInWithEmailAndPassword(e, p).catch(err => showToast(cleanError(err.message))); };
-    window.handleSignup = () => { const n = document.getElementById('reg-name').value, e = document.getElementById('reg-email').value, p = document.getElementById('reg-pass').value; auth.createUserWithEmailAndPassword(e, p).then(r => r.user.updateProfile({displayName:n})).then(u=>{firebase.auth().currentUser.sendEmailVerification();showToast("Check Email!");switchAuth('login');}).catch(err => showToast(cleanError(err.message))); };
+    window.handleSignup = () => { 
+        const n = document.getElementById('reg-name').value, e = document.getElementById('reg-email').value, p = document.getElementById('reg-pass').value; 
+        auth.createUserWithEmailAndPassword(e, p).then(r => {
+             db.collection('users').doc(e).set({ firstName: n.split(' ')[0], email: e, role: 'Employee', createdAt: firebase.firestore.FieldValue.serverTimestamp() });
+             return r.user.updateProfile({displayName:n});
+        }).then(u=>{firebase.auth().currentUser.sendEmailVerification();showToast("Check Email!");switchAuth('login');}).catch(err => showToast(cleanError(err.message))); 
+    };
     window.handleReset = () => { auth.sendPasswordResetEmail(document.getElementById('reset-email').value).then(()=>showToast("Link Sent")).catch(err=>showToast(cleanError(err.message))); };
     window.checkVerificationStatus = () => { const u = firebase.auth().currentUser; if(u) u.reload().then(()=>{if(u.emailVerified) location.reload();}); };
     window.resendVerificationEmail = () => { const u = firebase.auth().currentUser; if(u) u.sendEmailVerification().then(()=>showToast("Sent!")); };
 
     // Seed
     document.getElementById('btn-seed-data').addEventListener('click', window.seedData);
-   
+    
     // Candidate Filters
     document.getElementById('search-input').addEventListener('input', e => { state.filters.text = e.target.value.toLowerCase(); renderCandidateTable(); });
     document.getElementById('filter-recruiter').addEventListener('change', e => { state.filters.recruiter = e.target.value; renderCandidateTable(); });
@@ -706,7 +748,6 @@ function setupEventListeners() {
     const overlay = document.getElementById('sidebar-overlay');
     const navLinks = document.querySelectorAll('.nav-item');
 
-    // Toggle Open
     if(mobileBtn) {
         mobileBtn.addEventListener('click', () => {
             sidebar.classList.toggle('mobile-open');
@@ -714,7 +755,6 @@ function setupEventListeners() {
         });
     }
 
-    // Close when clicking overlay
     if(overlay) {
         overlay.addEventListener('click', () => {
             sidebar.classList.remove('mobile-open');
@@ -722,7 +762,6 @@ function setupEventListeners() {
         });
     }
 
-    // Close when clicking a nav link (for better UX)
     navLinks.forEach(link => {
         link.addEventListener('click', () => {
             if(window.innerWidth <= 900) {
@@ -735,29 +774,23 @@ function setupEventListeners() {
     // --- HUB EVENT LISTENERS ---
     const hubPicker = document.getElementById('hub-date-picker');
     if(hubPicker) {
-        // Set default value
         hubPicker.value = new Date().toISOString().split('T')[0];
-        
-        // Listen for date change
         hubPicker.addEventListener('change', (e) => {
             updateHubStats(null, e.target.value);
         });
     }
 
-    // Listen for Filter Buttons (Daily/Weekly/Monthly)
     document.querySelectorAll('.filter-btn').forEach(btn => {
         btn.addEventListener('click', () => {
             updateHubStats(btn.getAttribute('data-filter'), null);
         });
     });
 
-    // Initialize Hub Stats on Load
     setTimeout(() => { if(window.updateHubStats) updateHubStats('daily', new Date().toISOString().split('T')[0]); }, 1000);
 
-    // Wallpaper Changer Logic
     const wallpaperBtn = document.getElementById('change-wallpaper-btn');
     const wallpapers = [
-        "", // Default (CSS variable)
+        "", // Default
         "linear-gradient(to right, #243949 0%, #517fa4 100%)", // Corporate Blue
         "linear-gradient(109.6deg, rgb(20, 30, 48) 11.2%, rgb(36, 59, 85) 91.1%)", // Deep Night
         "linear-gradient(to top, #30cfd0 0%, #330867 100%)", // Accent
@@ -769,14 +802,8 @@ function setupEventListeners() {
         wallpaperBtn.addEventListener('click', () => {
             wpIndex++;
             if(wpIndex >= wallpapers.length) wpIndex = 0;
-            
-            if(wpIndex === 0) {
-                // Reset to default CSS theme
-                document.body.style.background = ""; 
-            } else {
-                // Apply new gradient
-                document.body.style.background = wallpapers[wpIndex];
-            }
+            if(wpIndex === 0) document.body.style.background = ""; 
+            else document.body.style.background = wallpapers[wpIndex];
         });
     }
 }
@@ -795,23 +822,15 @@ window.seedData = () => {
     batch.commit().then(() => { renderCandidateTable(); showToast("25 Demo Candidates Inserted"); });
 };
 
-window.openModal = (id, type, name) => { state.modal.id = id; state.modal.type = type; dom.modal.self.style.display = 'flex'; dom.modal.title.innerText = `${name} - ${type.replace('Log','').toUpperCase()}`; dom.modal.input.value = new Date().toISOString().split('T')[0]; renderModalContent(); };
-window.closeActivityModal = () => { dom.modal.self.style.display = 'none'; };
-window.saveActivityLog = () => { const date = dom.modal.input.value; if(!date) return; const c = state.candidates.find(x => x.id === state.modal.id); let logs = c[state.modal.type] || []; logs.push(date); logs.sort().reverse(); db.collection('candidates').doc(state.modal.id).update({ [state.modal.type]: logs }); renderModalContent(); showToast("Activity Logged"); };
-function renderModalContent() { const c = state.candidates.find(x => x.id === state.modal.id); if(!c) return; const logs = c[state.modal.type] || []; const now = new Date(); let week = 0, month = 0; logs.forEach(dStr => { const d = new Date(dStr); const diff = (now - d) / (1000 * 60 * 60 * 24); if(diff <= 7) week++; if(d.getMonth() === now.getMonth()) month++; }); dom.modal.week.innerText = week; dom.modal.month.innerText = month; dom.modal.total.innerText = logs.length; dom.modal.list.innerHTML = logs.map(d => `<li>${d}</li>`).join(''); }
-
 window.openDeleteModal = (type) => { const count = state.selection[type].size; if (count === 0) return; state.pendingDelete.type = type; document.getElementById('del-count').innerText = count; document.getElementById('delete-modal').style.display = 'flex'; };
 window.closeDeleteModal = () => { document.getElementById('delete-modal').style.display = 'none'; state.pendingDelete.type = null; };
 
 window.executeDelete = () => { 
     const type = state.pendingDelete.type; 
     if (!type) return; 
-    
-    // Determine collection name
     let collection = 'candidates';
     if(type === 'onb') collection = 'onboarding';
     if(type === 'emp') collection = 'employees';
-
     state.selection[type].forEach(id => { db.collection(collection).doc(id).delete(); }); 
     state.selection[type].clear(); 
     updateSelectButtons(type); 
@@ -858,14 +877,11 @@ function renderChart(id, data, type) {
 let inactivityTimer;
 
 function startAutoLogoutTimer() {
-    // 10 Minutes in milliseconds (10 * 60 * 1000)
     const TIMEOUT_DURATION = 10 * 60 * 1000; 
 
     function resetTimer() {
-        if (!firebase.auth().currentUser) return; // Stop if not logged in
-
+        if (!firebase.auth().currentUser) return; 
         clearTimeout(inactivityTimer);
-       
         inactivityTimer = setTimeout(() => {
             firebase.auth().signOut().then(() => {
                 showToast("Session expired due to inactivity");
@@ -873,16 +889,10 @@ function startAutoLogoutTimer() {
             });
         }, TIMEOUT_DURATION);
     }
-
-    // List of events that count as "activity"
     const activityEvents = ['mousemove', 'keydown', 'click', 'scroll', 'touchstart'];
-
-    // Attach listeners to reset the timer on any of these events
     activityEvents.forEach(event => {
         document.addEventListener(event, resetTimer);
     });
-
-    // Start the timer immediately
     resetTimer();
 }
 
@@ -891,87 +901,71 @@ function stopAutoLogoutTimer() {
 }
 
 /* ========================================================
-   14. HUB DATE & FILTER LOGIC (UPDATED)
+   14. HUB DATE & FILTER LOGIC
    ======================================================== */
+state.hubDate = new Date().toISOString().split('T')[0]; 
+state.hubFilterType = 'daily'; 
 
-// Initialize Hub Date State
-state.hubDate = new Date().toISOString().split('T')[0]; // Default: Today
-state.hubFilterType = 'daily'; // Default: Daily
-
-// Main Logic: Calculate Range & Update UI
 window.updateHubStats = (filterType, dateVal) => {
-    // Update State
     if(filterType) state.hubFilterType = filterType;
     if(dateVal) state.hubDate = dateVal;
 
-    // Update UI Buttons
     document.querySelectorAll('.filter-btn').forEach(btn => {
         if(btn.dataset.filter === state.hubFilterType) btn.classList.add('active');
         else btn.classList.remove('active');
     });
 
-    // Update Date Picker Value
     const picker = document.getElementById('hub-date-picker');
     if(picker && picker.value !== state.hubDate) picker.value = state.hubDate;
 
-    // --- CALCULATE DATE RANGE (UPDATED LOGIC) ---
     const d = new Date(state.hubDate);
     let startTimestamp, endTimestamp;
     let labelText = "";
 
     if (state.hubFilterType === 'daily') {
-        // Selected Date only
         startTimestamp = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
         endTimestamp = startTimestamp + 86400000; 
-        
         labelText = d.toLocaleDateString('en-US', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
     } 
     else if (state.hubFilterType === 'weekly') {
-        // MONDAY to FRIDAY of selected week
         const day = d.getDay(); 
-        const distanceToMon = day === 0 ? 6 : day - 1; // if sun(0)->6, mon(1)->0, tue(2)->1
-        
+        const distanceToMon = day === 0 ? 6 : day - 1; 
         const monday = new Date(d);
-        monday.setDate(d.getDate() - distanceToMon); // Set to Monday
-        
+        monday.setDate(d.getDate() - distanceToMon); 
         const friday = new Date(monday);
-        friday.setDate(monday.getDate() + 4); // Set to Friday
+        friday.setDate(monday.getDate() + 4); 
 
-        // Start Monday 00:00:00
         startTimestamp = new Date(monday.getFullYear(), monday.getMonth(), monday.getDate()).getTime();
-        // End Friday 23:59:59 (so basically Saturday 00:00:00)
         endTimestamp = new Date(friday.getFullYear(), friday.getMonth(), friday.getDate()).getTime() + 86400000;
-
         labelText = `${monday.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - ${friday.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`;
     } 
     else if (state.hubFilterType === 'monthly') {
-        // Start of Month to End of Month
         startTimestamp = new Date(d.getFullYear(), d.getMonth(), 1).getTime();
-        // Last day of month
         const lastDay = new Date(d.getFullYear(), d.getMonth() + 1, 0);
         endTimestamp = lastDay.getTime() + 86400000;
-
         const firstDayStr = new Date(d.getFullYear(), d.getMonth(), 1).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
         const lastDayStr = lastDay.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-
         labelText = `${firstDayStr} - ${lastDayStr}`;
     }
 
-    // Save range to state for Table Renderer to use
     state.hubRange = { start: startTimestamp, end: endTimestamp };
 
-    // Update Header Text
     const labelEl = document.getElementById('hub-range-label');
     if(labelEl) labelEl.innerHTML = `<i class="fa-regular fa-calendar"></i> &nbsp; ${labelText}`;
 
-    // --- CALCULATE STATS ---
     let subCount = 0, scrCount = 0, intCount = 0;
+
+    const checkDateInRange = (entry) => {
+        const dStr = (typeof entry === 'string') ? entry : entry.date;
+        const t = new Date(dStr).getTime();
+        return t >= startTimestamp && t < endTimestamp;
+    };
 
     if(state.candidates) {
         state.candidates.forEach(c => {
-            if(c.submissionLog) c.submissionLog.forEach(d => { const t = new Date(d).getTime(); if(t >= startTimestamp && t < endTimestamp) subCount++; });
-            if(c.screeningLog) c.screeningLog.forEach(d => { const t = new Date(d).getTime(); if(t >= startTimestamp && t < endTimestamp) scrCount++; });
-            if(c.interviewLog) c.interviewLog.forEach(d => { const t = new Date(d).getTime(); if(t >= startTimestamp && t < endTimestamp) intCount++; });
+            if(c.submissionLog) c.submissionLog.forEach(entry => { if(checkDateInRange(entry)) subCount++; });
+            if(c.screeningLog) c.screeningLog.forEach(entry => { if(checkDateInRange(entry)) scrCount++; });
+            if(c.interviewLog) c.interviewLog.forEach(entry => { if(checkDateInRange(entry)) intCount++; });
         });
     }
 
@@ -979,7 +973,6 @@ window.updateHubStats = (filterType, dateVal) => {
     animateValue('stat-scr', scrCount);
     animateValue('stat-int', intCount);
 
-    // Refresh Table to Apply Filter to Rows
     renderHubTable();
 };
 
@@ -1001,9 +994,8 @@ function animateValue(id, end) {
     }, range === 0 ? 0 : (stepTime || 10));
 }
 
-// --- HUB ACTIONS (Row Toggle, Add, Edit, Delete) ---
+// --- HUB ACTIONS ---
 window.toggleHubRow = (id) => {
-    // If clicking the same row, close it. If different, open the new one.
     if(state.expandedRowId === id) {
         state.expandedRowId = null;
     } else {
@@ -1016,14 +1008,26 @@ window.addHubLog = (id, fieldName, inputId) => {
     const dateVal = document.getElementById(inputId).value;
     if(!dateVal) return showToast("Please select a date");
 
+    const linkVal = prompt("Paste Email/Meeting Link (Optional):");
+
     const candidate = state.candidates.find(c => c.id === id);
     if(!candidate) return;
 
     let logs = candidate[fieldName] || [];
-    logs.push(dateVal);
     
-    // Sort logs descending (newest first)
-    logs.sort().reverse();
+    const newEntry = {
+        date: dateVal,
+        link: linkVal || "", 
+        timestamp: Date.now()
+    };
+
+    logs.push(newEntry);
+    
+    logs.sort((a, b) => {
+        const da = (typeof a === 'string') ? a : a.date;
+        const db = (typeof b === 'string') ? b : b.date;
+        return new Date(db) - new Date(da);
+    });
 
     db.collection('candidates').doc(id).update({
         [fieldName]: logs
@@ -1032,17 +1036,16 @@ window.addHubLog = (id, fieldName, inputId) => {
     }).catch(err => showToast("Error: " + err.message));
 };
 
-// DELETE LOG
-window.deleteHubLog = (id, fieldName, dateToDelete) => {
-    if(!confirm("Are you sure you want to delete this log entry?")) return;
+window.deleteHubLog = (id, fieldName, indexToDelete) => {
+    if(!confirm("Delete this log entry?")) return;
 
     const candidate = state.candidates.find(c => c.id === id);
     if(!candidate) return;
 
     let logs = candidate[fieldName] || [];
-    const index = logs.indexOf(dateToDelete);
-    if (index > -1) {
-        logs.splice(index, 1); // Remove only one instance
+    
+    if (indexToDelete > -1 && indexToDelete < logs.length) {
+        logs.splice(indexToDelete, 1);
     }
 
     db.collection('candidates').doc(id).update({
@@ -1052,37 +1055,224 @@ window.deleteHubLog = (id, fieldName, dateToDelete) => {
     }).catch(err => showToast("Error: " + err.message));
 };
 
-// EDIT LOG
-window.editHubLog = (id, fieldName, oldDate) => {
-    const newDate = prompt("Update Log Date (YYYY-MM-DD):", oldDate);
+/* ========================================================
+   NEW: EMAIL ATTACHMENT UPLOAD & VIEWER
+   ======================================================== */
+window.triggerHubFileUpload = (candidateId, fieldName) => {
+    state.uploadTarget = { id: candidateId, field: fieldName };
+    document.getElementById('hub-file-input').click();
+};
+
+window.handleHubFileSelect = (input) => {
+    const file = input.files[0];
+    if (!file) return;
+
+    const { id, field } = state.uploadTarget;
+    if (!id || !field) return;
+
+    // Default Date to Today
+    const dateVal = new Date().toISOString().split('T')[0];
+    const user = auth.currentUser;
+
+    const storageRef = storage.ref(`candidates/${id}/emails/${Date.now()}_${file.name}`);
     
-    if(newDate && newDate !== oldDate) {
-        // Simple regex check for YYYY-MM-DD format validity
-        if(!/^\d{4}-\d{2}-\d{2}$/.test(newDate)) {
-            return showToast("Invalid Date Format. Use YYYY-MM-DD");
-        }
+    showToast("Uploading Email...");
 
+    storageRef.put(file).then(snapshot => {
+        return snapshot.ref.getDownloadURL();
+    }).then(url => {
+        // Add log entry with this URL
         const candidate = state.candidates.find(c => c.id === id);
-        if(!candidate) return;
+        let logs = candidate[field] || [];
 
-        let logs = candidate[fieldName] || [];
-        
-        // Remove old date
-        const index = logs.indexOf(oldDate);
-        if (index > -1) logs.splice(index, 1);
-        
-        // Add new date
-        logs.push(newDate);
-        
-        // Sort
-        logs.sort().reverse();
+        const newEntry = {
+            date: dateVal,
+            link: url,
+            timestamp: Date.now()
+        };
 
-        db.collection('candidates').doc(id).update({
-            [fieldName]: logs
-        }).then(() => {
-            showToast("Log Updated");
-        }).catch(err => showToast("Error: " + err.message));
+        logs.push(newEntry);
+        logs.sort((a, b) => {
+            const da = (typeof a === 'string') ? a : a.date;
+            const db = (typeof b === 'string') ? b : b.date;
+            return new Date(db) - new Date(da);
+        });
+
+        return db.collection('candidates').doc(id).update({ [field]: logs });
+    }).then(() => {
+        showToast("Email Attached!");
+        // Reset input
+        input.value = '';
+    }).catch(err => {
+        showToast("Upload Error: " + err.message);
+        input.value = '';
+    });
+};
+
+window.viewEmailLog = async (url) => {
+    // Show Modal Loading State
+    dom.emailViewer.modal.style.display = 'flex';
+    dom.emailViewer.subject.textContent = "Loading Email...";
+    dom.emailViewer.iframe.srcdoc = "Loading...";
+
+    try {
+        const response = await fetch(url);
+        const blob = await response.blob();
+        
+        // Use PostalMime to parse
+        const parser = new PostalMime.default();
+        const email = await parser.parse(blob);
+
+        // Render Metadata
+        dom.emailViewer.subject.textContent = email.subject || '(No Subject)';
+        dom.emailViewer.from.textContent = email.from ? `${email.from.name} <${email.from.address}>` : 'Unknown';
+        dom.emailViewer.to.textContent = email.to ? email.to.map(t => t.address).join(', ') : 'Unknown';
+        dom.emailViewer.date.textContent = email.date ? new Date(email.date).toLocaleString() : '';
+
+        // Render Body
+        let bodyContent = email.html || email.text || '(No Content)';
+        // Base tag needed for some relative links/images
+        dom.emailViewer.iframe.srcdoc = `<base target="_blank">${bodyContent}`;
+
+    } catch (err) {
+        console.error(err);
+        dom.emailViewer.subject.textContent = "Error Loading Email";
+        dom.emailViewer.iframe.srcdoc = `<div style="padding:20px; color:red;">Failed to parse email file. It might be corrupted or in an unsupported format.<br>${err.message}</div>`;
     }
+};
+
+window.closeEmailViewer = () => {
+    dom.emailViewer.modal.style.display = 'none';
+    dom.emailViewer.iframe.srcdoc = '';
+};
+
+/* ========================================================
+   PROFILE PHOTO ACTIONS
+   ======================================================== */
+window.triggerPhotoUpload = () => {
+    document.getElementById('profile-upload-input').click();
+};
+
+window.handlePhotoUpload = async (input) => {
+    const file = input.files[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+        return showToast("Please select an image file.");
+    }
+
+    const user = auth.currentUser;
+    if (!user) return;
+
+    const avatarImg = document.getElementById('profile-main-img');
+    const avatarPlaceholder = document.getElementById('profile-main-icon');
+    const deleteBtn = document.getElementById('btn-delete-photo');
+    const loader = document.getElementById('avatar-loading');
+    
+    if(loader) loader.style.display = 'flex';
+
+    const localPreviewURL = URL.createObjectURL(file);
+    if(avatarImg) { 
+        avatarImg.src = localPreviewURL; 
+        avatarImg.style.display = 'block'; 
+    }
+    if(avatarPlaceholder) avatarPlaceholder.style.display = 'none';
+
+    try {
+        const compressedBlob = await compressImage(file, 600, 0.7);
+        const storageRef = storage.ref(`users/${user.email}/profile.jpg`); 
+        
+        const uploadTask = storageRef.put(compressedBlob);
+
+        uploadTask.on('state_changed', 
+            (snapshot) => {}, 
+            (error) => {
+                console.error("Upload Error:", error);
+                showToast("Upload Failed");
+                if(loader) loader.style.display = 'none';
+            }, 
+            () => {
+                uploadTask.snapshot.ref.getDownloadURL().then((downloadURL) => {
+                    db.collection('users').doc(user.email).set({
+                        photoURL: downloadURL
+                    }, { merge: true });
+
+                    user.updateProfile({ photoURL: downloadURL });
+
+                    if(deleteBtn) deleteBtn.style.display = 'flex';
+                    if(loader) loader.style.display = 'none';
+                    showToast("Photo Updated");
+                });
+            }
+        );
+
+    } catch (err) {
+        console.error("Compression Error:", err);
+        showToast("Error processing image");
+        if(loader) loader.style.display = 'none';
+    }
+};
+
+function compressImage(file, maxWidth, quality) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.readAsDataURL(file);
+        reader.onload = (event) => {
+            const img = new Image();
+            img.src = event.target.result;
+            img.onload = () => {
+                const canvas = document.createElement('canvas');
+                let width = img.width;
+                let height = img.height;
+
+                if (width > maxWidth) {
+                    height *= maxWidth / width;
+                    width = maxWidth;
+                }
+
+                canvas.width = width;
+                canvas.height = height;
+                
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(img, 0, 0, width, height);
+                
+                canvas.toBlob((blob) => {
+                    resolve(blob);
+                }, 'image/jpeg', quality);
+            };
+            img.onerror = (error) => reject(error);
+        };
+        reader.onerror = (error) => reject(error);
+    });
+}
+
+window.deleteProfilePhoto = () => {
+    if(!confirm("Remove profile photo?")) return;
+
+    const user = auth.currentUser;
+    if (!user) return;
+
+    const loader = document.getElementById('avatar-loading');
+    if(loader) loader.style.display = 'flex';
+
+    db.collection('users').doc(user.email).update({
+        photoURL: firebase.firestore.FieldValue.delete()
+    }).then(() => {
+        const avatarImg = document.getElementById('profile-main-img');
+        const avatarPlaceholder = document.getElementById('profile-main-icon');
+        const deleteBtn = document.getElementById('btn-delete-photo');
+
+        if(avatarImg) { avatarImg.src = ''; avatarImg.style.display = 'none'; }
+        if(avatarPlaceholder) avatarPlaceholder.style.display = 'flex';
+        if(deleteBtn) deleteBtn.style.display = 'none';
+
+        if(loader) loader.style.display = 'none';
+        showToast("Photo Removed");
+        
+    }).catch(err => {
+        showToast("Error: " + err.message);
+        if(loader) loader.style.display = 'none';
+    });
 };
 
 // START
