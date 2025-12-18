@@ -370,6 +370,7 @@ function renderHubTable() {
         return matchesText && matchesRec;
     });
 
+    // FULL NAMES FOR COLUMNS
     const headers = ['#', 'Name', 'Recruiter', 'Tech', 'Submissions', 'Screenings', 'Interviews', 'Last Activity'];
     
     dom.tables.hub.head.innerHTML = `<tr>${headers.map(h => `<th>${h}</th>`).join('')}</tr>`;
@@ -441,7 +442,6 @@ function renderHubTable() {
                         const clickAction = isEmail ? `onclick="viewEmailLog('${link}')"` : `href="${link}" target="_blank"`;
                         const btnClass = isEmail ? 'hub-link-btn is-email' : 'hub-link-btn';
                         
-                        // If it's email, use button, if link, use anchor
                         if(isEmail) {
                              linkHtml = `<button class="${btnClass}" ${clickAction} title="Open Email"><i class="fa-solid ${icon}"></i></button>`;
                         } else {
@@ -1113,10 +1113,13 @@ window.viewEmailLog = async (url) => {
     // Show Modal Loading State
     dom.emailViewer.modal.style.display = 'flex';
     dom.emailViewer.subject.textContent = "Loading Email...";
-    dom.emailViewer.iframe.srcdoc = "Loading...";
+    dom.emailViewer.iframe.srcdoc = "";
 
     try {
+        // Bypass 404 by downloading the file content directly
         const response = await fetch(url);
+        if (!response.ok) throw new Error("File not found or link expired.");
+        
         const blob = await response.blob();
         
         // Use PostalMime to parse
@@ -1125,19 +1128,32 @@ window.viewEmailLog = async (url) => {
 
         // Render Metadata
         dom.emailViewer.subject.textContent = email.subject || '(No Subject)';
-        dom.emailViewer.from.textContent = email.from ? `${email.from.name} <${email.from.address}>` : 'Unknown';
+        dom.emailViewer.from.textContent = email.from ? `${email.from.name || ''} <${email.from.address}>` : 'Unknown';
         dom.emailViewer.to.textContent = email.to ? email.to.map(t => t.address).join(', ') : 'Unknown';
         dom.emailViewer.date.textContent = email.date ? new Date(email.date).toLocaleString() : '';
 
         // Render Body
-        let bodyContent = email.html || email.text || '(No Content)';
+        let bodyContent = email.html || email.text || '<div style="padding:20px">No content to display.</div>';
+        
+        // SECURITY: Disable links inside the email to prevent redirects to 404 pages
+        bodyContent = bodyContent.replace(/<a /g, '<a style="pointer-events:none; cursor:default; color:gray; text-decoration:none;" ');
+
         // Base tag needed for some relative links/images
-        dom.emailViewer.iframe.srcdoc = `<base target="_blank">${bodyContent}`;
+        dom.emailViewer.iframe.srcdoc = `
+            <base target="_blank">
+            <style>body { font-family: sans-serif; padding: 20px; }</style>
+            ${bodyContent}
+        `;
 
     } catch (err) {
         console.error(err);
         dom.emailViewer.subject.textContent = "Error Loading Email";
-        dom.emailViewer.iframe.srcdoc = `<div style="padding:20px; color:red;">Failed to parse email file. It might be corrupted or in an unsupported format.<br>${err.message}</div>`;
+        dom.emailViewer.iframe.srcdoc = `
+            <div style="padding:20px; text-align:center; color:#ef4444;">
+                <h3>Could not load email</h3>
+                <p>Ensure you uploaded a <b>.eml</b> file and not a pasted Gmail link.</p>
+                <small>${err.message}</small>
+            </div>`;
     }
 };
 
