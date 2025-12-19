@@ -7,8 +7,8 @@
   
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/postal-mime/dist/browser/postal-mime.js"></script>
   
   <link rel="stylesheet" href="style.css">
@@ -36,7 +36,7 @@
       <div class="glass-panel auth-box">
         <div class="brand-large"><span class="text-cyan">N</span><span class="text-white">ILE</span><span class="text-gold">PRISE</span></div>
         <p class="subtitle">Next Innovative Leading Enterprises</p>
-       
+        
         <div id="form-login" class="auth-form active">
             <h3 class="form-title">Secure Portal Login</h3>
             <div class="input-group">
@@ -93,7 +93,7 @@
           <i class="fa-solid fa-envelope-open-text"></i>
         </div>
         <h3 class="form-title">Verify Your Email</h3>
-        <p class="subtitle" style="line-height: 1.6; margin-bottom: 25px; opacity: 0.8; font-size: 0.8rem; background: none; -webkit-text-fill-color: var(--text-main); filter: none;">
+        <p class="subtitle" style="line-height: 1.6; margin-bottom: 25px; opacity: 0.8; font-size: 0.8rem;">
           We've sent a verification link to <br>
           <span id="verify-email-display" class="text-cyan" style="font-weight: bold;"></span>
         </p>
@@ -117,6 +117,8 @@
           <button class="nav-item" data-target="view-hub"><i class="fa-solid fa-id-card"></i> <span>Candidate Hub</span></button>
           <button class="nav-item" data-target="view-employees"><i class="fa-solid fa-address-book"></i> <span>Employees</span></button>
           <button class="nav-item" data-target="view-onboarding"><i class="fa-solid fa-user-check"></i> <span>Onboarding</span></button>
+          <button class="nav-item" data-target="view-placements"><i class="fa-solid fa-trophy"></i> <span>Placements</span></button>
+          
           <button class="nav-item" data-target="view-profile"><i class="fa-solid fa-user-gear"></i> <span>Profile</span></button>
           <button class="nav-item" data-target="view-settings"><i class="fa-solid fa-gear"></i> <span>Settings</span></button>
         </nav>
@@ -137,17 +139,28 @@
           </button>
 
           <h2 id="page-title">Dashboard</h2>
-          <div class="header-right">
-            <div class="header-widget">
-                <span class="label">Live Sync:</span>
-                <span id="header-updated" class="value text-success">Active</span>
+          
+          <div class="header-right modern-header-controls">
+            <div class="status-widget">
+                <div class="pulse-dot"></div>
+                <span id="header-updated" class="status-text">Synced</span>
             </div>
-            <div class="v-divider"></div>
-           
-            <div class="admin-pill">
-              <span id="display-username" style="display:none; margin-right: 10px; font-size:0.9rem; font-weight:600;"></span>
-              <button id="theme-toggle" class="btn-icon" style="margin-right: 10px;"><i class="fa-solid fa-sun"></i></button>
-              <button id="btn-logout" class="logout-icon"><i class="fa-solid fa-power-off"></i></button>
+          
+            <div class="user-controls-pill">
+                <button id="theme-toggle" class="control-icon" title="Switch Theme">
+                    <i class="fa-solid fa-circle-half-stroke"></i>
+                </button>
+               
+                <div class="user-info-group">
+                    <div class="user-avatar-small">
+                      <i class="fa-solid fa-user"></i>
+                    </div>
+                    <span id="display-username" class="user-name">User</span>
+                </div>
+          
+                <button id="btn-logout" class="control-icon danger-hover" title="Logout">
+                    <i class="fa-solid fa-power-off"></i>
+                </button>
             </div>
           </div>
         </header>
@@ -168,9 +181,29 @@
               <div class="kpi-content">
                 <span class="kpi-label">Total Candidates</span>
                 <h1 id="stat-total" class="kpi-value">0</h1>
-                <div class="kpi-trend positive"><i class="fa-solid fa-arrow-up"></i> Database Active</div>
+               
+                <div style="display: flex; flex-direction: column; gap: 4px; font-size: 0.85rem; font-weight: 500; margin-top: 5px;">
+                    <div style="color: #22c55e; display: flex; align-items: center; gap: 8px;">
+                        <i class="fa-solid fa-arrow-up"></i> 
+                        <span><b id="stat-active-count">0</b> Database Active</span>
+                    </div>
+                    <div style="color: #ef4444; display: flex; align-items: center; gap: 8px;">
+                        <i class="fa-solid fa-arrow-down"></i> 
+                        <span><b id="stat-inactive-count">0</b> Database Inactive</span>
+                    </div>
+                </div>
+
               </div>
               <div class="kpi-icon"><i class="fa-solid fa-users"></i></div>
+            </div>
+
+            <div class="kpi-card accent-green" style="border-left: 4px solid #22c55e;">
+                <div class="kpi-content">
+                    <span class="kpi-label">Placed Candidates</span>
+                    <h1 id="stat-placed" class="kpi-value">0</h1>
+                    <div class="kpi-trend positive"><i class="fa-solid fa-check-circle"></i> Successfully Placed</div>
+                </div>
+                <div class="kpi-icon"><i class="fa-solid fa-handshake"></i></div>
             </div>
 
             <div class="kpi-card accent-gold">
@@ -194,20 +227,12 @@
 
           <div class="charts-grid">
             <div class="chart-container large-chart">
-                <div class="chart-top">
-                    <h4>Recruiter Performance</h4>
-                </div>
-                <div class="canvas-wrapper">
-                    <canvas id="chart-recruiter"></canvas>
-                </div>
+                <div class="chart-top"><h4>Candidate by Recruiters</h4></div>
+                <div class="canvas-wrapper"><canvas id="chart-recruiter"></canvas></div>
             </div>
             <div class="chart-container small-chart">
-                <div class="chart-top">
-                    <h4>Technology Spread</h4>
-                </div>
-                <div class="canvas-wrapper">
-                    <canvas id="chart-tech"></canvas>
-                </div>
+                <div class="chart-top"><h4>Technology Spread</h4></div>
+                <div class="canvas-wrapper"><canvas id="chart-tech"></canvas></div>
             </div>
           </div>
         </div>
@@ -223,43 +248,106 @@
               </div>
               <button id="btn-delete-selected" class="btn btn-danger" style="display: none;"><i class="fa-solid fa-trash-can"></i> Delete (<span id="selected-count">0</span>)</button>
             </div>
-            <div class="filters-group">
-              <div class="search-box"><i class="fa-solid fa-search"></i><input type="text" id="search-input" placeholder="Search..."></div>
-              <div class="filter-box"><i class="fa-solid fa-user-tie"></i><select id="filter-recruiter"><option value="">All Recruiters</option></select></div>
-              <div class="filter-box"><i class="fa-solid fa-code"></i><select id="filter-tech"><option value="">All Tech</option></select></div>
-              <button id="btn-reset-filters" class="btn-icon"><i class="fa-solid fa-rotate-right"></i></button>
+           
+            <div class="filters-group modern-filter-row">
+                <div class="filter-pill">
+                    <i class="fa-solid fa-search"></i>
+                    <input type="text" id="search-input" placeholder="Search Name, Mobile...">
+                </div>
+                <div class="filter-pill">
+                    <i class="fa-solid fa-user-tie"></i>
+                    <select id="filter-recruiter"><option value="">All Recruiters</option></select>
+                    <i class="fa-solid fa-chevron-down dropdown-arrow"></i>
+                </div>
+                <div class="filter-pill">
+                    <i class="fa-solid fa-code"></i>
+                    <select id="filter-tech"><option value="">All Tech</option></select>
+                    <i class="fa-solid fa-chevron-down dropdown-arrow"></i>
+                </div>
+                <button id="btn-reset-filters" class="btn-circle-refresh" title="Reset Filters"><i class="fa-solid fa-rotate-right"></i></button>
             </div>
           </div>
+
           <div class="table-container glass-panel">
             <div class="table-wrapper"><table class="modern-table"><thead id="table-head"></thead><tbody id="table-body"></tbody></table></div>
             <div class="footer-count"><small id="cand-footer-count">Showing all records</small></div>
           </div>
         </div>
 
+        <div id="view-placements" class="content-view">
+            <div class="toolbar glass-panel">
+                <div class="left-actions">
+                    <h3 style="margin:0; color:var(--text-main);"><i class="fa-solid fa-trophy text-gold"></i> Placement Board</h3>
+                    <button id="btn-add-placement" class="btn btn-primary" style="margin-left: 15px;"><i class="fa-solid fa-plus"></i> Insert Row</button>
+                    <button id="btn-delete-placed" class="btn btn-danger" style="display: none; margin-left: 10px;"><i class="fa-solid fa-trash-can"></i> Delete (<span id="placed-selected-count">0</span>)</button>
+                </div>
+                
+                <div class="filters-group modern-filter-row">
+                    <div class="date-filter-pill" style="margin-right: 10px;">
+                        <button class="filter-btn active" onclick="updatePlacementFilter('monthly', this)">Monthly</button>
+                        <button class="filter-btn" onclick="updatePlacementFilter('yearly', this)">Yearly</button>
+                    </div>
+                    
+                    <div class="modern-glass-pill">
+                        <button class="cal-nav-btn prev" onclick="changePlacementDate(-1)" title="Previous">
+                            <i class="fa-solid fa-chevron-left"></i>
+                        </button>
+                        
+                        <div class="cal-display-area">
+                            <div class="cal-icon-glow">
+                                <i class="fa-regular fa-calendar-days"></i>
+                            </div>
+                            <span id="placement-date-display" class="cal-text-animated">Loading...</span>
+                        </div>
+
+                        <button class="cal-nav-btn next" onclick="changePlacementDate(1)" title="Next">
+                            <i class="fa-solid fa-chevron-right"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="table-container glass-panel">
+                <div class="table-wrapper">
+                    <table class="modern-table" id="placement-table">
+                        <thead>
+                            <tr>
+                                <th><input type="checkbox" id="select-all-placed" onclick="toggleSelectAll('placed', this)"></th>
+                                <th>#</th>
+                                <th>First Name</th>
+                                <th>Last Name</th>
+                                <th>Tech</th>
+                                <th>Location</th>
+                                <th>Contract Type</th>
+                                <th>Placed Date</th>
+                            </tr>
+                        </thead>
+                        <tbody id="placement-table-body">
+                        </tbody>
+                    </table>
+                </div>
+                <div class="footer-count"><small id="placement-footer-count">Showing 0 placed candidates</small></div>
+            </div>
+        </div>
+
         <div id="view-hub" class="content-view">
-         
           <div class="glass-panel" style="padding: 20px; margin-bottom: 20px; flex-shrink: 0;">
             <div class="hub-header-row">
               <div class="hub-title-block">
                 <h2 style="margin:0;">Activity Hub</h2>
-                <div id="hub-range-label" class="hub-date-display">
-                    <i class="fa-regular fa-calendar"></i> Loading...
-                </div>
+                <div id="hub-range-label" class="hub-date-display"><i class="fa-regular fa-calendar"></i> Loading...</div>
               </div>
              
               <div class="hub-controls">
                 <div class="custom-date-wrapper">
                     <input type="date" id="hub-date-picker" class="hub-date-input">
                 </div>
-
                 <div class="v-divider" style="height:25px; margin:0 5px;"></div>
-
                 <div class="date-filter-pill">
                   <button class="filter-btn active" data-filter="daily">Daily</button>
                   <button class="filter-btn" data-filter="weekly">Weekly</button>
                   <button class="filter-btn" data-filter="monthly">Monthly</button>
                 </div>
-               
                 <div class="v-divider" style="height:25px; margin:0 5px;"></div>
                 <button id="change-wallpaper-btn" class="btn-icon" title="Change Wallpaper"><i class="fa-solid fa-image"></i></button>
               </div>
@@ -282,19 +370,18 @@
           </div>
 
           <div class="toolbar glass-panel">
-            <div class="filters-group" style="justify-content: space-between; width:100%;">
-                <div class="filter-box" style="max-width: 200px;">
+            <div class="filters-group modern-filter-row">
+                <div class="filter-pill">
                     <i class="fa-solid fa-user-tie"></i>
                     <select id="hub-filter-recruiter">
                         <option value="">All Recruiters</option>
-                        <option value="Asif">Asif</option>
-                        <option value="Ikram">Ikram</option>
-                        <option value="Manikanta">Manikanta</option>
-                        <option value="Mazher">Mazher</option>
-                        <option value="Shoeb">Shoeb</option>
                     </select>
+                    <i class="fa-solid fa-chevron-down dropdown-arrow"></i>
                 </div>
-                <div class="search-box"><i class="fa-solid fa-search"></i><input type="text" id="hub-search-input" placeholder="Search Candidate..."></div>
+                <div class="filter-pill">
+                    <i class="fa-solid fa-search"></i>
+                    <input type="text" id="hub-search-input" placeholder="Search Candidate...">
+                </div>
             </div>
           </div>
           <div class="table-container glass-panel">
@@ -307,10 +394,14 @@
             <div class="toolbar glass-panel">
                 <div class="left-actions">
                     <button id="btn-add-employee" class="btn btn-primary"><i class="fa-solid fa-user-plus"></i> Insert Row</button>
+                    <button id="btn-add-recruiter-dropdown" class="btn" style="display: none; background: #8b5cf6; color:white; box-shadow: 0 0 15px rgba(139, 92, 246, 0.4);">
+                        <i class="fa-solid fa-user-tag"></i> Add to Dropdown
+                    </button>
                     <button id="btn-delete-employee" class="btn btn-danger" style="display: none;"><i class="fa-solid fa-trash-can"></i> Delete (<span id="emp-selected-count">0</span>)</button>
                 </div>
-                <div class="filters-group" style="justify-content: flex-end;">
-                    <div class="search-box">
+               
+                <div class="filters-group modern-filter-row">
+                    <div class="filter-pill">
                         <i class="fa-solid fa-search"></i>
                         <input type="text" id="emp-search-input" placeholder="Search Employee...">
                     </div>
@@ -333,12 +424,12 @@
                <button id="btn-add-onboarding" class="btn btn-primary"><i class="fa-solid fa-user-plus"></i> Insert Row</button>
                <button id="btn-delete-onboarding" class="btn btn-danger" style="display: none;"><i class="fa-solid fa-trash-can"></i> Delete (<span id="onboarding-selected-count">0</span>)</button>
             </div>
-            <div class="filters-group" style="justify-content: flex-end; gap: 15px;">
-                <div class="search-box">
+           
+            <div class="filters-group modern-filter-row">
+                <div class="filter-pill">
                     <i class="fa-solid fa-search"></i>
                     <input type="text" id="onb-search-input" placeholder="Search Name...">
                 </div>
-                <h3 style="margin:0; color:var(--text-muted); font-size: 0.9rem; text-transform: uppercase; white-space: nowrap;">Onboarding List</h3>
             </div>
           </div>
           <div class="table-container glass-panel">
@@ -353,101 +444,105 @@
         </div>
 
         <div id="view-profile" class="content-view">
-            <div class="profile-layout">
-               
+            <div class="profile-container">
+                
                 <div class="profile-sidebar glass-panel">
-                    <div class="profile-identity">
+                    <div class="profile-header-card">
                         <div class="profile-avatar-wrapper">
                             <img id="profile-main-img" src="" class="avatar-img" style="display:none;">
-                            <div id="profile-main-icon" class="avatar-placeholder"><i class="fa-solid fa-user"></i></div>
-                           
+                            <div id="profile-main-icon" class="avatar-placeholder">
+                                <span style="font-size: 3rem;"><i class="fa-solid fa-user"></i></span>
+                            </div>
+                            
+                            <button class="avatar-upload-btn" onclick="triggerPhotoUpload()" title="Change Photo">
+                                <i class="fa-solid fa-camera"></i>
+                            </button>
+                            
                             <div id="avatar-loading" class="avatar-loading">
-                                <i class="fa-solid fa-circle-notch fa-spin"></i>
+                                <div class="spinner"></div>
                             </div>
-
                             <input type="file" id="profile-upload-input" accept="image/*" style="display: none;" onchange="handlePhotoUpload(this)">
+                        </div>
+                        
+                        <h2 id="prof-name-display">User Name</h2>
+                        <div class="role-pill" id="prof-role-display">Employee</div>
+                        
+                        <div class="profile-actions">
+                            <button id="btn-delete-photo" class="btn-text-danger" onclick="deleteProfilePhoto()" style="display: none;">
+                                <i class="fa-solid fa-trash"></i> Remove Photo
+                            </button>
+                        </div>
+                    </div>
 
-                            <div class="avatar-actions">
-                                <button class="btn-avatar-action upload" onclick="triggerPhotoUpload()" title="Change Photo">
-                                    <i class="fa-solid fa-camera"></i>
-                                </button>
-                                <button id="btn-delete-photo" class="btn-avatar-action delete" onclick="deleteProfilePhoto()" title="Remove Photo" style="display: none;">
-                                    <i class="fa-solid fa-trash"></i>
-                                </button>
-                            </div>
-                        </div>
-                       
-                        <h2 id="prof-name-display">Loading...</h2>
-                        <p id="prof-role-display" class="role-badge">Staff Member</p>
-                       
-                        <div class="profile-meta">
-                            <span><i class="fa-solid fa-envelope"></i> <span id="prof-email-display-sidebar">...</span></span>
+                    <div class="profile-contact-preview">
+                        <div class="preview-item">
+                            <i class="fa-solid fa-envelope"></i>
+                            <span id="prof-email-display-sidebar">...</span>
                         </div>
                     </div>
-                   
-                    <div class="profile-actions-bottom">
-                        <button class="btn btn-primary btn-block" onclick="saveProfileData()">
-                            <i class="fa-solid fa-floppy-disk"></i> Save All Changes
-                        </button>
-                    </div>
+
+                    <button class="btn btn-primary btn-block save-btn-large" onclick="saveProfileData()">
+                        <i class="fa-solid fa-floppy-disk"></i> Save Changes
+                    </button>
                 </div>
 
                 <div class="profile-main glass-panel">
-                   
-                    <div class="profile-section">
-                        <div class="section-header"><i class="fa-regular fa-id-card"></i> Personal Information</div>
-                        <div class="form-grid">
-                            <div class="form-group">
+                    
+                    <div class="form-section">
+                        <div class="section-title">
+                            <i class="fa-regular fa-user text-cyan"></i> Personal Information
+                        </div>
+                        <div class="form-grid-3">
+                            <div class="input-wrapper">
                                 <label>First Name</label>
-                                <input type="text" id="prof-first" class="profile-input" placeholder="First Name">
+                                <input type="text" id="prof-first" class="modern-input" placeholder="Enter First Name">
                             </div>
-                            <div class="form-group">
+                            <div class="input-wrapper">
                                 <label>Last Name</label>
-                                <input type="text" id="prof-last" class="profile-input" placeholder="Last Name">
+                                <input type="text" id="prof-last" class="modern-input" placeholder="Enter Last Name">
                             </div>
-                            <div class="form-group">
+                            <div class="input-wrapper">
                                 <label>Date of Birth</label>
-                                <input type="date" id="prof-dob" class="profile-input">
+                                <input type="date" id="prof-dob" class="modern-input">
                             </div>
                         </div>
                     </div>
 
-                    <div class="profile-section">
-                        <div class="section-header"><i class="fa-solid fa-phone"></i> Contact Details</div>
-                        <div class="form-grid">
-                            <div class="form-group">
+                    <div class="form-section">
+                        <div class="section-title">
+                            <i class="fa-solid fa-address-book text-gold"></i> Contact Details
+                        </div>
+                        <div class="form-grid-2">
+                            <div class="input-wrapper">
                                 <label>Work Mobile</label>
-                                <input type="tel" id="prof-work-mobile" class="profile-input" placeholder="+1 (555) 000-0000">
+                                <input type="tel" id="prof-work-mobile" class="modern-input" placeholder="+1 (000) 000-0000">
                             </div>
-                            <div class="form-group">
+                            <div class="input-wrapper">
                                 <label>Personal Mobile</label>
-                                <input type="tel" id="prof-personal-mobile" class="profile-input" placeholder="+91 90000 00000">
+                                <input type="tel" id="prof-personal-mobile" class="modern-input" placeholder="+91 00000 00000">
                             </div>
-                            <div class="form-group full-width">
+                            <div class="input-wrapper full-width">
                                 <label>Personal Email</label>
-                                <input type="email" id="prof-personal-email" class="profile-input" placeholder="personal@gmail.com">
+                                <input type="email" id="prof-personal-email" class="modern-input" placeholder="personal.email@gmail.com">
                             </div>
                         </div>
                     </div>
 
-                    <div class="profile-section">
-                        <div class="section-header"><i class="fa-solid fa-briefcase"></i> Work & System</div>
-                        <div class="form-grid">
-                            <div class="form-group">
-                                <label>Designation <small>(Read Only)</small></label>
-                                <input type="text" id="prof-designation" class="profile-input readonly-input" readonly>
+                    <div class="form-section">
+                        <div class="section-title">
+                            <i class="fa-solid fa-shield-halved text-purple"></i> System Data
+                        </div>
+                        <div class="form-grid-2">
+                            <div class="input-wrapper">
+                                <label>Designation <span class="badge-readonly">Locked</span></label>
+                                <input type="text" id="prof-designation" class="modern-input readonly" readonly>
                             </div>
-                            <div class="form-group">
-                                <label>Official Email <small>(Read Only)</small></label>
-                                <input type="email" id="prof-office-email" class="profile-input readonly-input" readonly>
-                            </div>
-                            <div class="form-group full-width">
-                                <label>Tracking Sheet URL</label>
-                                <input type="url" id="prof-sheet" class="profile-input" placeholder="https://docs.google.com/spreadsheets/...">
+                            <div class="input-wrapper">
+                                <label>Official Email <span class="badge-readonly">Locked</span></label>
+                                <input type="email" id="prof-office-email" class="modern-input readonly" readonly>
                             </div>
                         </div>
                     </div>
-
                 </div>
             </div>
         </div>
@@ -478,13 +573,9 @@
   <div id="delete-modal" class="modal-overlay">
     <div class="glass-panel modal-box" style="max-width: 400px; text-align: center;">
       <div class="modal-body">
-        <div class="icon-box" style="margin: 0 auto 20px; background: rgba(239,68,68,0.2); color: var(--danger); width: 60px; height: 60px; border-radius: 50%; font-size: 1.5rem;">
-          <i class="fa-solid fa-triangle-exclamation"></i>
-        </div>
+        <div class="icon-box" style="margin: 0 auto 20px; background: rgba(239,68,68,0.2); color: var(--danger); width: 60px; height: 60px; border-radius: 50%; font-size: 1.5rem;"><i class="fa-solid fa-triangle-exclamation"></i></div>
         <h3 style="margin-bottom: 10px; font-size: 1.2rem;">Confirm Deletion</h3>
-        <p style="color: var(--text-muted); margin-bottom: 30px;">
-          Are you sure you want to permanently delete <span id="del-count" style="color: var(--text-main); font-weight: bold;">0</span> items? 
-        </p>
+        <p style="color: var(--text-muted); margin-bottom: 30px;">Are you sure you want to permanently delete <span id="del-count" style="color: var(--text-main); font-weight: bold;">0</span> items?</p>
         <div style="display: flex; gap: 10px; justify-content: center;">
           <button class="btn" style="background: rgba(255,255,255,0.1); color: var(--text-main);" onclick="closeDeleteModal()">Cancel</button>
           <button class="btn btn-danger" onclick="executeDelete()">Yes, Delete</button>
