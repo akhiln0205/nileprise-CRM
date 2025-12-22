@@ -108,7 +108,7 @@
     </section>
 
     <section id="dashboard-screen" class="screen">
-     
+      
       <aside class="sidebar glass-panel">
         <div class="brand-small"><span class="text-cyan">NILE</span><span class="text-white">PRISE</span> <span class="text-gold">CRM</span></div>
         <nav class="nav-menu">
@@ -125,7 +125,14 @@
       </aside>
 
       <main class="main-content">
-       
+        
+        <div id="birthday-bar" class="birthday-bar" style="display: none;">
+            <div class="ticker-wrap">
+                <div id="birthday-ticker-content" class="ticker-move">
+                </div>
+            </div>
+        </div>
+
         <header class="top-bar">
           <button id="btn-mobile-menu" class="btn-icon" style="margin-right: 10px; display: none;">
             <i class="fa-solid fa-bars"></i>
@@ -138,7 +145,7 @@
                 <div class="pulse-dot"></div>
                 <span id="header-updated" class="status-text">Synced</span>
             </div>
-           
+            
             <div class="user-controls-pill">
                 <button id="theme-toggle" class="control-icon" title="Switch Theme">
                     <i class="fa-solid fa-circle-half-stroke"></i>
@@ -146,14 +153,14 @@
                 <button id="change-wallpaper-btn" class="control-icon" title="Change Wallpaper">
                     <i class="fa-solid fa-image"></i>
                 </button>
-               
+                
                 <div class="user-info-group">
                     <div class="user-avatar-small">
                       <i class="fa-solid fa-user"></i>
                     </div>
                     <span id="display-username" class="user-name">User</span>
                 </div>
-           
+            
                 <button id="btn-logout" class="control-icon danger-hover" title="Logout">
                     <i class="fa-solid fa-power-off"></i>
                 </button>
@@ -162,25 +169,6 @@
         </header>
 
         <div id="view-dashboard" class="content-view active">
-          
-            <div id="modern-birthday-section" class="birthday-hero glass-panel" style="display: none;">
-                <div class="birthday-content">
-                    <div class="birthday-icon-box">
-                        <i class="fa-solid fa-cake-candles bounce-anim"></i>
-                    </div>
-                    <div class="birthday-text">
-                        <h3>Happy Birthday! 🎉</h3>
-                        <p>Sending our warmest wishes to <span id="birthday-names-display" class="highlight-names"></span></p>
-                    </div>
-                </div>
-                <div class="birthday-decoration">
-                    <div class="confetti c1"></div>
-                    <div class="confetti c2"></div>
-                    <div class="confetti c3"></div>
-                    <div class="confetti c4"></div>
-                </div>
-            </div>
-
           <div class="dashboard-header-row">
             <div>
                 <h2 style="margin:0;">Executive Overview</h2>
@@ -196,6 +184,7 @@
               <div class="kpi-content">
                 <span class="kpi-label">Total Candidates</span>
                 <h1 id="stat-total" class="kpi-value">0</h1>
+                
                 <div style="display: flex; flex-direction: column; gap: 4px; font-size: 0.85rem; font-weight: 500; margin-top: 5px;">
                     <div style="color: #22c55e; display: flex; align-items: center; gap: 8px;">
                         <i class="fa-solid fa-arrow-up"></i> 
@@ -206,6 +195,7 @@
                         <span><b id="stat-inactive-count">0</b> Database Inactive</span>
                     </div>
                 </div>
+
               </div>
               <div class="kpi-icon"><i class="fa-solid fa-users"></i></div>
             </div>
@@ -259,11 +249,9 @@
                 <button class="btn-toggle" data-status="Active">Active</button>
                 <button class="btn-toggle" data-status="Inactive">Inactive</button>
               </div>
-              <button id="btn-delete-selected" class="btn btn-danger" style="display: none;" onclick="openDeleteModal('cand')">
-                <i class="fa-solid fa-trash-can"></i> Delete (<span id="selected-count">0</span>)
-              </button>
+              <button id="btn-delete-selected" class="btn btn-danger" style="display: none;"><i class="fa-solid fa-trash-can"></i> Delete (<span id="selected-count">0</span>)</button>
             </div>
-           
+            
             <div class="filters-group modern-filter-row">
                 <div class="filter-pill">
                     <i class="fa-solid fa-search"></i>
@@ -293,12 +281,8 @@
             <div class="toolbar glass-panel">
                 <div class="left-actions">
                     <h3 style="margin:0; margin-right: 15px; color:var(--text-main);"><i class="fa-solid fa-trophy text-gold"></i> Placement Board</h3>
-                    
                     <button id="btn-add-placement" class="btn btn-primary" onclick="manualAddPlacement()">
                         <i class="fa-solid fa-plus"></i> Add Placement
-                    </button>
-                    <button id="btn-delete-placement" class="btn btn-danger" style="display: none;" onclick="openDeleteModal('placement')">
-                        <i class="fa-solid fa-trash-can"></i> Delete (<span id="placement-selected-count">0</span>)
                     </button>
                 </div>
                 
@@ -309,16 +293,17 @@
                     </div>
                     
                     <div class="modern-glass-pill" style="display: flex; gap: 10px; align-items: center;">
-                        <input type="month" id="placement-month-picker" class="modern-input" style="width: auto; cursor:pointer;" onchange="fetchPlacements()">
-                        
-                        <select id="placement-year-picker" class="modern-select" style="display:none; width: 100px; padding: 5px; border-radius: 5px; background: rgba(0,0,0,0.3); color: white; border: 1px solid rgba(255,255,255,0.2);" onchange="fetchPlacements()">
-                            <option value="2023">2023</option>
-                            <option value="2024">2024</option>
-                            <option value="2025" selected>2025</option>
-                            <option value="2026">2026</option>
-                        </select>
+                       <input type="month" id="placement-month-picker" class="modern-input" style="width: auto; cursor:pointer;" onchange="renderPlacementTable()">
+                       
+                       <select id="placement-year-picker" class="modern-select" style="display:none; width: 100px; padding: 5px; border-radius: 5px; background: rgba(0,0,0,0.3); color: white; border: 1px solid rgba(255,255,255,0.2);" onchange="renderPlacementTable()">
+                           <option value="2023">2023</option>
+                           <option value="2024">2024</option>
+                           <option value="2025" selected>2025</option>
+                           <option value="2026">2026</option>
+                           <option value="2027">2027</option>
+                       </select>
 
-                        <button class="btn-circle-refresh" onclick="fetchPlacements()" title="Refresh"><i class="fa-solid fa-rotate-right"></i></button>
+                       <button class="btn-circle-refresh" onclick="renderPlacementTable()" title="Refresh"><i class="fa-solid fa-rotate-right"></i></button>
                     </div>
                 </div>
             </div>
@@ -327,17 +312,16 @@
                 <div class="table-wrapper">
                     <table class="modern-table" id="placement-table">
                         <thead>
-                            <tr>
-                                <th><input type="checkbox" id="select-all-placement" onclick="toggleSelectAll('placement', this)"></th>
-                                <th>#</th>
-                                <th>First Name</th>
-                                <th>Last Name</th>
-                                <th>Tech</th>
-                                <th>Location</th>
-                                <th>Contract Type</th>
-                                <th>Placed Date</th>
-                                <th>Actions</th>
-                            </tr>
+                                <tr>
+                                    <th>#</th>
+                                    <th>First Name</th>
+                                    <th>Last Name</th>
+                                    <th>Tech</th>
+                                    <th>Location</th>
+                                    <th>Contract Type</th>
+                                    <th>Placed Date</th>
+                                    <th>Actions</th>
+                                </tr>
                         </thead>
                         <tbody id="placement-table-body">
                         </tbody>
@@ -385,6 +369,9 @@
           </div>
 
           <div class="toolbar glass-panel">
+            <div class="left-actions">
+            </div>
+
             <div class="filters-group modern-filter-row">
                 <div class="filter-pill">
                     <i class="fa-solid fa-user-tie"></i>
@@ -409,9 +396,9 @@
             <div class="toolbar glass-panel">
                 <div class="left-actions">
                     <button id="btn-add-employee" class="btn btn-primary"><i class="fa-solid fa-user-plus"></i> Insert Row</button>
-                    <button id="btn-delete-employee" class="btn btn-danger" style="display: none;" onclick="openDeleteModal('emp')"><i class="fa-solid fa-trash-can"></i> Delete (<span id="emp-selected-count">0</span>)</button>
+                    <button id="btn-delete-employee" class="btn btn-danger" style="display: none;"><i class="fa-solid fa-trash-can"></i> Delete (<span id="emp-selected-count">0</span>)</button>
                 </div>
-               
+                
                 <div class="filters-group modern-filter-row">
                     <div class="filter-pill">
                         <i class="fa-solid fa-search"></i>
@@ -434,9 +421,9 @@
           <div class="toolbar glass-panel">
             <div class="left-actions">
                <button id="btn-add-onboarding" class="btn btn-primary"><i class="fa-solid fa-user-plus"></i> Insert Row</button>
-               <button id="btn-delete-onboarding" class="btn btn-danger" style="display: none;" onclick="openDeleteModal('onb')"><i class="fa-solid fa-trash-can"></i> Delete (<span id="onboarding-selected-count">0</span>)</button>
+               <button id="btn-delete-onboarding" class="btn btn-danger" style="display: none;"><i class="fa-solid fa-trash-can"></i> Delete (<span id="onboarding-selected-count">0</span>)</button>
             </div>
-           
+            
             <div class="filters-group modern-filter-row">
                 <div class="filter-pill">
                     <i class="fa-solid fa-search"></i>
@@ -457,10 +444,10 @@
 
         <div id="view-profile" class="content-view">
             <div class="profile-modern-container">
-               
+                
                 <div class="profile-identity-card glass-panel">
                     <div class="profile-banner"></div>
-                   
+                    
                     <div class="avatar-section">
                         <div class="avatar-wrapper">
                             <img id="profile-main-img" src="" class="avatar-img" style="display:none;">
