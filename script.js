@@ -68,7 +68,11 @@ const state = {
     pendingDelete: { type: null },
     metadata: {
         recruiters: [], // Auto-populated from Employees
-        techs: ["React", "Node.js", "Java", "Python", ".NET", "AWS", "Azure", "DevOps"]
+        techs: [
+            "React", "Node.js", "Java", "Python", ".NET", 
+            "AWS", "Azure", "DevOps", "Salesforce", "Data Science",
+            "Angular", "Flutter", "Golang", "PHP"
+        ]
     }
 };
 
@@ -99,8 +103,8 @@ const dom = {
         modal: document.getElementById('email-viewer-modal'),
         iframe: document.getElementById('viewer-iframe'),
         subject: document.getElementById('viewer-subject'),
-        from: document.getElementById('viewer-from').querySelector('span'),
-        to: document.getElementById('viewer-to').querySelector('span'),
+        from: document.getElementById('viewer-from') ? document.getElementById('viewer-from').querySelector('span') : null,
+        to: document.getElementById('viewer-to') ? document.getElementById('viewer-to').querySelector('span') : null,
         date: document.getElementById('viewer-date')
     }
 };
@@ -125,11 +129,11 @@ function init() {
                 const email = user.email.toLowerCase();
                 const knownUser = ALLOWED_USERS[email];
                 state.userRole = knownUser ? knownUser.role : 'Admin';
-           
+          
                 updateUserProfile(user, knownUser);
                 switchScreen('app');
                 initRealtimeListeners();
-           
+          
                 startAutoLogoutTimer();
             } else {
                 switchScreen('auth');
@@ -142,6 +146,12 @@ function init() {
     }
     if(localStorage.getItem('np_theme') === 'light') {
         document.body.classList.add('light-mode');
+    }
+    
+    // Init Placements Picker
+    const monthPicker = document.getElementById('placement-month-picker');
+    if(monthPicker) { 
+        monthPicker.value = new Date().toISOString().slice(0, 7); 
     }
 }
 
@@ -175,6 +185,13 @@ dom.navItems.forEach(btn => {
         const clickedBtn = e.target.closest('.nav-item');
         clickedBtn.classList.add('active');
 
+        // Auto-close sidebar on mobile
+        if (window.innerWidth <= 900) {
+            document.querySelector('.sidebar').classList.remove('mobile-open');
+            const overlay = document.getElementById('sidebar-overlay');
+            if(overlay) overlay.classList.remove('active');
+        }
+
         Object.values(dom.views).forEach(view => view.classList.remove('active'));
         const targetId = clickedBtn.getAttribute('data-target');
         const targetView = document.getElementById(targetId);
@@ -187,6 +204,13 @@ dom.navItems.forEach(btn => {
         }
     });
 });
+
+window.openProfileTab = (tabId, btnElement) => {
+    document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+    document.querySelectorAll('.tab-link').forEach(btn => btn.classList.remove('active'));
+    document.getElementById(tabId).classList.add('active');
+    btnElement.classList.add('active');
+};
 
 function updateUserProfile(user, hardcodedData) {
     if (!user) return;
@@ -287,12 +311,11 @@ function initRealtimeListeners() {
         state.employees = [];
         snap.forEach(doc => state.employees.push({ id: doc.id, ...doc.data() }));
         
-        // Auto-update Recruiter List
         const firstNames = state.employees.map(e => e.first).filter(name => name && name.trim().length > 0);
         const uniqueRecruiters = [...new Set(firstNames)].sort();
         state.metadata.recruiters = uniqueRecruiters;
         
-        renderDropdowns();
+        renderDropdowns(); // Update dropdowns when employees change
         renderEmployeeTable();
         updateDashboardStats();
     });
@@ -303,15 +326,14 @@ function initRealtimeListeners() {
         snap.forEach(doc => {
             const data = doc.data();
             const fullName = (data.firstName && data.lastName) 
-                             ? `${data.firstName} ${data.lastName}` 
-                             : (data.displayName || 'Staff Member');
+                                ? `${data.firstName} ${data.lastName}` 
+                                : (data.displayName || 'Staff Member');
             state.allUsers.push({ id: doc.id, name: fullName, dob: data.dob });
         });
         checkBirthdays();
     });
 }
 
-// 7-SECOND BIRTHDAY LOGIC
 window.checkBirthdays = () => {
     const today = new Date();
     const currentMonth = String(today.getMonth() + 1).padStart(2, '0');
@@ -336,15 +358,40 @@ window.checkBirthdays = () => {
         
         window.birthdayTimer = setTimeout(() => {
             bar.style.display = 'none';
-        }, 7000); // 7 Seconds
+        }, 7000); 
     } else {
         bar.style.display = 'none';
     }
 };
 
 /* ========================================================
-   8. RENDERERS
+   8. RENDERERS & DROPDOWNS
    ======================================================== */
+function renderDropdowns() {
+    console.log("Rendering Dropdowns...", state.metadata);
+
+    // 1. Populate "All Recruiters" (Candidates View)
+    const rSelect = document.getElementById('filter-recruiter');
+    if (rSelect) {
+        const options = state.metadata.recruiters.map(r => `<option value="${r}">${r}</option>`).join('');
+        rSelect.innerHTML = `<option value="">All Recruiters</option>${options}`;
+    }
+
+    // 2. Populate "All Tech" (Candidates View)
+    const tSelect = document.getElementById('filter-tech');
+    if (tSelect) {
+        const options = state.metadata.techs.map(t => `<option value="${t}">${t}</option>`).join('');
+        tSelect.innerHTML = `<option value="">All Tech</option>${options}`;
+    }
+
+    // 3. Populate "All Recruiters" (Hub View)
+    const hubRec = document.getElementById('hub-filter-recruiter');
+    if (hubRec) {
+        const options = state.metadata.recruiters.map(r => `<option value="${r}">${r}</option>`).join('');
+        hubRec.innerHTML = `<option value="">All Recruiters</option>${options}`;
+    }
+}
+
 function renderCandidateTable() {
     const filtered = getFilteredData(state.candidates, state.filters);
     const headers = ['<input type="checkbox" id="select-all-cand" onclick="toggleSelectAll(\'cand\', this)">', '#', 'First Name', 'Last Name', 'Mobile', 'WhatsApp', 'Tech', 'Recruiter', 'Status', 'Assigned', 'Gmail', 'LinkedIn', 'Resume', 'Track', 'Comments'];
@@ -380,12 +427,12 @@ function renderCandidateTable() {
                 </select>
             </td>
             <td><input type="date" class="date-input-modern" value="${c.assigned}" onchange="inlineDateEdit('${c.id}', 'assigned', 'candidates', this.value)"></td>
-         
+        
             <td class="url-cell" onclick="inlineUrlEdit('${c.id}', 'gmail', 'candidates', this)">${c.gmail ? 'Gmail' : ''}</td>
             <td class="url-cell" onclick="inlineUrlEdit('${c.id}', 'linkedin', 'candidates', this)">${c.linkedin ? 'LinkedIn' : ''}</td>
             <td class="url-cell" onclick="inlineUrlEdit('${c.id}', 'resume', 'candidates', this)">${c.resume ? 'Resume' : ''}</td>
             <td class="url-cell" onclick="inlineUrlEdit('${c.id}', 'track', 'candidates', this)">${c.track ? 'Tracker' : ''}</td>
-         
+        
             <td onclick="inlineEdit('${c.id}', 'comments', 'candidates', this)">${c.comments || '-'}</td>
         </tr>`;
     }).join('');
@@ -447,24 +494,24 @@ function renderHubTable() {
 
         if(isExpanded) {
             const inputDefault = state.hubDate; 
-           
+          
             const renderTimeline = (list, fieldName) => {
                 if(!list || list.length === 0) return `<li class="hub-log-item" style="justify-content:center; opacity:0.5; padding-left:0;">No records for selected date</li>`;
-               
+              
                 return list.map((entry, index) => {
                     const isLegacy = typeof entry === 'string';
                     const dateStr = isLegacy ? entry : entry.date;
                     const link = isLegacy ? '' : entry.link;
                     const dateObj = new Date(dateStr);
                     const niceDate = dateObj.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
-                   
+                  
                     let linkHtml = '';
                     if(link) {
                         const isEmail = link.includes('firebasestorage') || link.endsWith('.eml');
                         const icon = isEmail ? 'fa-envelope-open-text' : 'fa-arrow-up-right-from-square';
                         const clickAction = isEmail ? `onclick="viewEmailLog('${link}')"` : `href="${link}" target="_blank"`;
                         const btnClass = isEmail ? 'hub-link-btn is-email' : 'hub-link-btn';
-                       
+                      
                         if(isEmail) {
                             linkHtml = `<button class="${btnClass}" ${clickAction} title="Open Email"><i class="fa-solid ${icon}"></i></button>`;
                         } else {
@@ -491,7 +538,7 @@ function renderHubTable() {
             <tr class="hub-details-row">
                 <td colspan="8">
                     <div class="hub-details-wrapper" onclick="event.stopPropagation()">
-                     
+                    
                         <div class="hub-col cyan">
                             <div class="hub-col-header cyan"><i class="fa-solid fa-paper-plane"></i> Submission <span style="float:right; opacity:0.5">${subs.length}</span></div>
                             <div class="hub-input-group">
@@ -567,7 +614,7 @@ function renderEmployeeTable() {
             <td onclick="inlineEdit('${c.id}', 'designation', 'employees', this)">${c.designation || '-'}</td>
             <td onclick="inlineEdit('${c.id}', 'workMobile', 'employees', this)">${c.workMobile || '-'}</td>
             <td onclick="inlineEdit('${c.id}', 'personalMobile', 'employees', this)">${c.personalMobile || '-'}</td>
-           
+          
             <td class="url-cell" onclick="inlineEdit('${c.id}', 'officialEmail', 'employees', this)">${c.officialEmail || ''}</td>
             <td class="url-cell" onclick="inlineEdit('${c.id}', 'personalEmail', 'employees', this)">${c.personalEmail || ''}</td>
         </tr>`;
@@ -643,34 +690,68 @@ window.renderPlacementTable = () => {
     const tbody = document.getElementById('placement-table-body');
     if(!tbody) return;
 
+    if (filtered.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="8" style="opacity:0.6; padding:20px;">No placements found for this period.</td></tr>`;
+        document.getElementById('placement-footer-count').innerText = "Showing 0 records";
+        return;
+    }
+
     tbody.innerHTML = filtered.map((c, i) => {
         return `
         <tr>
             <td>${i + 1}</td>
-            <td style="font-weight:600;">${c.first}</td>
-            <td style="font-weight:600;">${c.last}</td>
-            <td class="text-cyan">${c.tech}</td>
+            <td onclick="inlineEdit('${c.id}', 'first', 'candidates', this)">${c.first}</td>
+            <td onclick="inlineEdit('${c.id}', 'last', 'candidates', this)">${c.last}</td>
+            <td onclick="inlineEdit('${c.id}', 'tech', 'candidates', this)" class="text-cyan">${c.tech}</td>
             <td onclick="inlineEdit('${c.id}', 'location', 'candidates', this)">${c.location || '<span style="opacity:0.5; font-size:0.8rem;">Add Location</span>'}</td>
             <td onclick="inlineEdit('${c.id}', 'contract', 'candidates', this)">${c.contract || '<span style="opacity:0.5; font-size:0.8rem;">Add Type</span>'}</td>
-            <td>${c.assigned}</td>
+            <td>
+                <input type="date" class="date-input-modern" value="${c.assigned}" onchange="inlineDateEdit('${c.id}', 'assigned', 'candidates', this.value)">
+            </td>
+            <td>
+                <button class="btn-icon-small" style="color:#ef4444;" onclick="deletePlacement('${c.id}')" title="Permanently Delete">
+                    <i class="fa-solid fa-trash"></i>
+                </button>
+            </td>
         </tr>`;
     }).join('');
-    const footer = document.getElementById('placement-footer-count');
-    if(footer) footer.innerText = `Showing ${filtered.length} placed candidates`;
+    
+    document.getElementById('placement-footer-count').innerText = `Showing ${filtered.length} placed candidates`;
+};
+
+window.manualAddPlacement = () => {
+    const today = new Date().toISOString().split('T')[0];
+    db.collection('candidates').add({
+        first: 'New',
+        last: 'Candidate',
+        tech: 'Technology',
+        status: 'Placed',       
+        assigned: today,        
+        location: '',
+        contract: '',
+        createdAt: Date.now(),
+        mobile: '',
+        recruiter: ''
+    }).then(() => {
+        showToast("New Placement Row Added");
+        const currentMonth = today.slice(0, 7); 
+        document.getElementById('placement-month-picker').value = currentMonth;
+        if(state.placementFilter === 'monthly') renderPlacementTable();
+    }).catch(err => {
+        showToast("Error: " + err.message);
+    });
+};
+
+window.deletePlacement = (id) => {
+    if(!confirm("Are you sure? This will permanently delete this record.")) return;
+    db.collection('candidates').doc(id).delete()
+        .then(() => showToast("Record Deleted"))
+        .catch(err => showToast("Error: " + err.message));
 };
 
 /* ========================================================
    9. UTILITIES & ACTIONS
    ======================================================== */
-function renderDropdowns() {
-    const rSelect = document.getElementById('filter-recruiter');
-    if (rSelect && state.metadata.recruiters) rSelect.innerHTML = `<option value="">All Recruiters</option>` + state.metadata.recruiters.map(r => `<option value="${r}">${r}</option>`).join('');
-    const tSelect = document.getElementById('filter-tech');
-    if (tSelect && state.metadata.techs) tSelect.innerHTML = `<option value="">All Tech</option>` + state.metadata.techs.map(t => `<option value="${t}">${t}</option>`).join('');
-    const hubRec = document.getElementById('hub-filter-recruiter');
-    if (hubRec && state.metadata.recruiters) hubRec.innerHTML = `<option value="">All Recruiters</option>` + state.metadata.recruiters.map(r => `<option value="${r}">${r}</option>`).join('');
-}
-
 function getFilteredData(data, filters) {
     return data.filter(item => {
         const matchesText = (item.first + ' ' + item.last + ' ' + (item.tech||'')).toLowerCase().includes(filters.text);
@@ -727,7 +808,13 @@ function editRecruiter(id, collection, el) {
 window.updateStatus = (id, col, val) => db.collection(col).doc(id).update({ status: val });
 
 window.toggleSelect = (id, type) => {
-    if(state.selection[type].has(id)) state.selection[type].delete(id); else state.selection[type].add(id);
+    if(!state.selection[type]) return; 
+    
+    if(state.selection[type].has(id)) {
+        state.selection[type].delete(id);
+    } else {
+        state.selection[type].add(id);
+    }
     updateSelectButtons(type);
 };
 
@@ -871,10 +958,6 @@ function setupEventListeners() {
              updateHubStats(btn.getAttribute('data-filter'), null);
         });
     });
-    
-    // Init Placements Picker
-    const monthPicker = document.getElementById('placement-month-picker');
-    if(monthPicker) { monthPicker.value = new Date().toISOString().slice(0, 7); }
 
     setTimeout(() => { if(window.updateHubStats) updateHubStats('daily', new Date().toISOString().split('T')[0]); }, 1000);
 
@@ -912,20 +995,108 @@ window.seedData = () => {
     batch.commit().then(() => { renderCandidateTable(); showToast("25 Demo Candidates Inserted"); });
 };
 
-window.openDeleteModal = (type) => { const count = state.selection[type].size; if (count === 0) return; state.pendingDelete.type = type; document.getElementById('del-count').innerText = count; document.getElementById('delete-modal').style.display = 'flex'; };
-window.closeDeleteModal = () => { document.getElementById('delete-modal').style.display = 'none'; state.pendingDelete.type = null; };
+// 1. Open the Modal and Set the State
+window.openDeleteModal = (type) => {
+    // Safety check: ensure the set exists
+    if (!state.selection[type]) {
+        console.error(`Selection type '${type}' not found in state.`);
+        return;
+    }
 
-window.executeDelete = () => { 
+    const count = state.selection[type].size;
+    if (count === 0) {
+        showToast("No items selected");
+        return;
+    }
+
+    // Set the type so executeDelete knows what to do
+    state.pendingDelete.type = type; 
+    
+    // Update UI
+    document.getElementById('del-count').innerText = count;
+    document.getElementById('delete-modal').style.display = 'flex';
+};
+
+// 2. Close the Modal
+window.closeDeleteModal = () => {
+    document.getElementById('delete-modal').style.display = 'none';
+    state.pendingDelete.type = null;
+};
+
+// 3. Execute the Delete (The Fix)
+window.executeDelete = async () => { 
     const type = state.pendingDelete.type; 
-    if (!type) return; 
-    let collection = 'candidates';
-    if(type === 'onb') collection = 'onboarding';
-    if(type === 'emp') collection = 'employees';
-    state.selection[type].forEach(id => { db.collection(collection).doc(id).delete(); }); 
-    state.selection[type].clear(); 
-    updateSelectButtons(type); 
-    showToast("Items Deleted"); 
-    closeDeleteModal(); 
+    
+    if (!type) {
+        console.error("No delete type found in state.");
+        closeDeleteModal();
+        return;
+    }
+
+    // MAP VIEW TYPE TO FIREBASE COLLECTION NAME
+    let collection = '';
+    let tableRenderFunc = null;
+
+    if (type === 'cand') { 
+        collection = 'candidates'; 
+        tableRenderFunc = renderCandidateTable;
+    }
+    else if (type === 'onb') { 
+        collection = 'onboarding'; 
+        tableRenderFunc = renderOnboardingTable;
+    }
+    else if (type === 'emp') { 
+        collection = 'employees'; 
+        tableRenderFunc = renderEmployeeTable;
+    }
+    
+    if (!collection) {
+        showToast("Error: Unknown Collection Type");
+        closeDeleteModal();
+        return;
+    }
+
+    // UI Feedback
+    const btn = document.querySelector('#delete-modal .btn-danger');
+    const originalText = btn.innerText;
+    btn.innerText = "Deleting...";
+    btn.disabled = true;
+
+    try {
+        const batch = db.batch();
+        const idsArray = Array.from(state.selection[type]);
+
+        if (idsArray.length === 0) throw new Error("No IDs selected.");
+
+        // Queue up deletes
+        idsArray.forEach(id => {
+            if(id) {
+                const ref = db.collection(collection).doc(id);
+                batch.delete(ref);
+            }
+        });
+
+        // Commit to Firebase
+        await batch.commit();
+
+        // Success: Clear selection
+        state.selection[type].clear(); 
+        
+        // Refresh Buttons & Table
+        updateSelectButtons(type); 
+        if (tableRenderFunc) tableRenderFunc();
+
+        showToast(`Successfully deleted ${idsArray.length} items.`);
+        
+    } catch (error) {
+        console.error("Delete Failed:", error);
+        alert("Delete Failed: " + error.message); 
+    } finally {
+        // Cleanup
+        btn.innerText = originalText;
+        btn.disabled = false;
+        closeDeleteModal();
+    }
 };
 
 window.exportData = () => { if (state.candidates.length === 0) return showToast("No data"); const headers = ["ID", "First", "Last", "Mobile", "Tech", "Recruiter", "Status", "Date", "Comments"]; const csvRows = [headers.join(",")]; state.candidates.forEach(c => { const row = [c.id, `"${c.first}"`, `"${c.last}"`, `"${c.mobile}"`, `"${c.tech}"`, `"${c.recruiter}"`, `"${c.status}"`, c.assigned, `"${(c.comments || '').replace(/"/g, '""')}"`]; csvRows.push(row.join(",")); }); const blob = new Blob([csvRows.join("\n")], { type: "text/csv" }); const url = window.URL.createObjectURL(blob); const a = document.createElement("a"); a.href = url; a.download = "candidates.csv"; a.click(); };
@@ -963,6 +1134,9 @@ let chartInstances = {};
 function renderChart(id, data, type) { 
     const ctx = document.getElementById(id);
     if(!ctx) return; 
+    // Fix: Ensure canvas has height before rendering to avoid chart.js errors
+    if(ctx.clientHeight === 0) ctx.style.height = '250px';
+
     const context = ctx.getContext('2d');
     if(chartInstances[id]) chartInstances[id].destroy(); 
     const colors = ['#06b6d4', '#f59e0b', '#8b5cf6', '#22c55e', '#ef4444', '#ec4899', '#6366f1'];
