@@ -126,13 +126,6 @@
 
       <main class="main-content">
        
-        <div id="birthday-bar" class="birthday-bar" style="display: none;">
-            <div class="ticker-wrap">
-                <div id="birthday-ticker-content" class="ticker-move">
-                    </div>
-            </div>
-        </div>
-
         <header class="top-bar">
           <button id="btn-mobile-menu" class="btn-icon" style="margin-right: 10px; display: none;">
             <i class="fa-solid fa-bars"></i>
@@ -145,10 +138,13 @@
                 <div class="pulse-dot"></div>
                 <span id="header-updated" class="status-text">Synced</span>
             </div>
-          
+           
             <div class="user-controls-pill">
                 <button id="theme-toggle" class="control-icon" title="Switch Theme">
                     <i class="fa-solid fa-circle-half-stroke"></i>
+                </button>
+                <button id="change-wallpaper-btn" class="control-icon" title="Change Wallpaper">
+                    <i class="fa-solid fa-image"></i>
                 </button>
                
                 <div class="user-info-group">
@@ -157,7 +153,7 @@
                     </div>
                     <span id="display-username" class="user-name">User</span>
                 </div>
-          
+           
                 <button id="btn-logout" class="control-icon danger-hover" title="Logout">
                     <i class="fa-solid fa-power-off"></i>
                 </button>
@@ -166,6 +162,25 @@
         </header>
 
         <div id="view-dashboard" class="content-view active">
+          
+            <div id="modern-birthday-section" class="birthday-hero glass-panel" style="display: none;">
+                <div class="birthday-content">
+                    <div class="birthday-icon-box">
+                        <i class="fa-solid fa-cake-candles bounce-anim"></i>
+                    </div>
+                    <div class="birthday-text">
+                        <h3>Happy Birthday! 🎉</h3>
+                        <p>Sending our warmest wishes to <span id="birthday-names-display" class="highlight-names"></span></p>
+                    </div>
+                </div>
+                <div class="birthday-decoration">
+                    <div class="confetti c1"></div>
+                    <div class="confetti c2"></div>
+                    <div class="confetti c3"></div>
+                    <div class="confetti c4"></div>
+                </div>
+            </div>
+
           <div class="dashboard-header-row">
             <div>
                 <h2 style="margin:0;">Executive Overview</h2>
@@ -181,7 +196,6 @@
               <div class="kpi-content">
                 <span class="kpi-label">Total Candidates</span>
                 <h1 id="stat-total" class="kpi-value">0</h1>
-               
                 <div style="display: flex; flex-direction: column; gap: 4px; font-size: 0.85rem; font-weight: 500; margin-top: 5px;">
                     <div style="color: #22c55e; display: flex; align-items: center; gap: 8px;">
                         <i class="fa-solid fa-arrow-up"></i> 
@@ -192,7 +206,6 @@
                         <span><b id="stat-inactive-count">0</b> Database Inactive</span>
                     </div>
                 </div>
-
               </div>
               <div class="kpi-icon"><i class="fa-solid fa-users"></i></div>
             </div>
@@ -246,7 +259,9 @@
                 <button class="btn-toggle" data-status="Active">Active</button>
                 <button class="btn-toggle" data-status="Inactive">Inactive</button>
               </div>
-              <button id="btn-delete-selected" class="btn btn-danger" style="display: none;"><i class="fa-solid fa-trash-can"></i> Delete (<span id="selected-count">0</span>)</button>
+              <button id="btn-delete-selected" class="btn btn-danger" style="display: none;" onclick="openDeleteModal('cand')">
+                <i class="fa-solid fa-trash-can"></i> Delete (<span id="selected-count">0</span>)
+              </button>
             </div>
            
             <div class="filters-group modern-filter-row">
@@ -277,9 +292,14 @@
         <div id="view-placements" class="content-view">
             <div class="toolbar glass-panel">
                 <div class="left-actions">
-                    <h3 style="margin:0; color:var(--text-main);"><i class="fa-solid fa-trophy text-gold"></i> Placement Board</h3>
-                    <button id="btn-add-placement" class="btn btn-primary" style="margin-left: 15px;"><i class="fa-solid fa-plus"></i> Insert Row</button>
-                    <button id="btn-delete-placed" class="btn btn-danger" style="display: none; margin-left: 10px;"><i class="fa-solid fa-trash-can"></i> Delete (<span id="placed-selected-count">0</span>)</button>
+                    <h3 style="margin:0; margin-right: 15px; color:var(--text-main);"><i class="fa-solid fa-trophy text-gold"></i> Placement Board</h3>
+                    
+                    <button id="btn-add-placement" class="btn btn-primary" onclick="manualAddPlacement()">
+                        <i class="fa-solid fa-plus"></i> Add Placement
+                    </button>
+                    <button id="btn-delete-placement" class="btn btn-danger" style="display: none;" onclick="openDeleteModal('placement')">
+                        <i class="fa-solid fa-trash-can"></i> Delete (<span id="placement-selected-count">0</span>)
+                    </button>
                 </div>
                 
                 <div class="filters-group modern-filter-row">
@@ -288,21 +308,17 @@
                         <button class="filter-btn" onclick="updatePlacementFilter('yearly', this)">Yearly</button>
                     </div>
                     
-                    <div class="modern-glass-pill">
-                        <button class="cal-nav-btn prev" onclick="changePlacementDate(-1)" title="Previous">
-                            <i class="fa-solid fa-chevron-left"></i>
-                        </button>
+                    <div class="modern-glass-pill" style="display: flex; gap: 10px; align-items: center;">
+                        <input type="month" id="placement-month-picker" class="modern-input" style="width: auto; cursor:pointer;" onchange="fetchPlacements()">
                         
-                        <div class="cal-display-area">
-                            <div class="cal-icon-glow">
-                                <i class="fa-regular fa-calendar-days"></i>
-                            </div>
-                            <span id="placement-date-display" class="cal-text-animated">Loading...</span>
-                        </div>
+                        <select id="placement-year-picker" class="modern-select" style="display:none; width: 100px; padding: 5px; border-radius: 5px; background: rgba(0,0,0,0.3); color: white; border: 1px solid rgba(255,255,255,0.2);" onchange="fetchPlacements()">
+                            <option value="2023">2023</option>
+                            <option value="2024">2024</option>
+                            <option value="2025" selected>2025</option>
+                            <option value="2026">2026</option>
+                        </select>
 
-                        <button class="cal-nav-btn next" onclick="changePlacementDate(1)" title="Next">
-                            <i class="fa-solid fa-chevron-right"></i>
-                        </button>
+                        <button class="btn-circle-refresh" onclick="fetchPlacements()" title="Refresh"><i class="fa-solid fa-rotate-right"></i></button>
                     </div>
                 </div>
             </div>
@@ -312,7 +328,7 @@
                     <table class="modern-table" id="placement-table">
                         <thead>
                             <tr>
-                                <th><input type="checkbox" id="select-all-placed" onclick="toggleSelectAll('placed', this)"></th>
+                                <th><input type="checkbox" id="select-all-placement" onclick="toggleSelectAll('placement', this)"></th>
                                 <th>#</th>
                                 <th>First Name</th>
                                 <th>Last Name</th>
@@ -320,6 +336,7 @@
                                 <th>Location</th>
                                 <th>Contract Type</th>
                                 <th>Placed Date</th>
+                                <th>Actions</th>
                             </tr>
                         </thead>
                         <tbody id="placement-table-body">
@@ -337,7 +354,7 @@
                 <h2 style="margin:0;">Activity Hub</h2>
                 <div id="hub-range-label" class="hub-date-display"><i class="fa-regular fa-calendar"></i> Loading...</div>
               </div>
-             
+              
               <div class="hub-controls">
                 <div class="custom-date-wrapper">
                     <input type="date" id="hub-date-picker" class="hub-date-input">
@@ -348,8 +365,6 @@
                   <button class="filter-btn" data-filter="weekly">Weekly</button>
                   <button class="filter-btn" data-filter="monthly">Monthly</button>
                 </div>
-                <div class="v-divider" style="height:25px; margin:0 5px;"></div>
-                <button id="change-wallpaper-btn" class="btn-icon" title="Change Wallpaper"><i class="fa-solid fa-image"></i></button>
               </div>
             </div>
 
@@ -394,10 +409,7 @@
             <div class="toolbar glass-panel">
                 <div class="left-actions">
                     <button id="btn-add-employee" class="btn btn-primary"><i class="fa-solid fa-user-plus"></i> Insert Row</button>
-                    <button id="btn-add-recruiter-dropdown" class="btn" style="display: none; background: #8b5cf6; color:white; box-shadow: 0 0 15px rgba(139, 92, 246, 0.4);">
-                        <i class="fa-solid fa-user-tag"></i> Add to Dropdown
-                    </button>
-                    <button id="btn-delete-employee" class="btn btn-danger" style="display: none;"><i class="fa-solid fa-trash-can"></i> Delete (<span id="emp-selected-count">0</span>)</button>
+                    <button id="btn-delete-employee" class="btn btn-danger" style="display: none;" onclick="openDeleteModal('emp')"><i class="fa-solid fa-trash-can"></i> Delete (<span id="emp-selected-count">0</span>)</button>
                 </div>
                
                 <div class="filters-group modern-filter-row">
@@ -422,7 +434,7 @@
           <div class="toolbar glass-panel">
             <div class="left-actions">
                <button id="btn-add-onboarding" class="btn btn-primary"><i class="fa-solid fa-user-plus"></i> Insert Row</button>
-               <button id="btn-delete-onboarding" class="btn btn-danger" style="display: none;"><i class="fa-solid fa-trash-can"></i> Delete (<span id="onboarding-selected-count">0</span>)</button>
+               <button id="btn-delete-onboarding" class="btn btn-danger" style="display: none;" onclick="openDeleteModal('onb')"><i class="fa-solid fa-trash-can"></i> Delete (<span id="onboarding-selected-count">0</span>)</button>
             </div>
            
             <div class="filters-group modern-filter-row">
@@ -444,105 +456,133 @@
         </div>
 
         <div id="view-profile" class="content-view">
-            <div class="profile-container">
-                
-                <div class="profile-sidebar glass-panel">
-                    <div class="profile-header-card">
-                        <div class="profile-avatar-wrapper">
+            <div class="profile-modern-container">
+               
+                <div class="profile-identity-card glass-panel">
+                    <div class="profile-banner"></div>
+                   
+                    <div class="avatar-section">
+                        <div class="avatar-wrapper">
                             <img id="profile-main-img" src="" class="avatar-img" style="display:none;">
                             <div id="profile-main-icon" class="avatar-placeholder">
-                                <span style="font-size: 3rem;"><i class="fa-solid fa-user"></i></span>
+                                <i class="fa-solid fa-user"></i>
                             </div>
-                            
-                            <button class="avatar-upload-btn" onclick="triggerPhotoUpload()" title="Change Photo">
-                                <i class="fa-solid fa-camera"></i>
-                            </button>
-                            
                             <div id="avatar-loading" class="avatar-loading">
                                 <div class="spinner"></div>
                             </div>
+                            <button class="avatar-edit-btn" onclick="triggerPhotoUpload()" title="Upload New Photo">
+                                <i class="fa-solid fa-camera"></i>
+                            </button>
                             <input type="file" id="profile-upload-input" accept="image/*" style="display: none;" onchange="handlePhotoUpload(this)">
                         </div>
-                        
+                    </div>
+
+                    <div class="identity-info">
                         <h2 id="prof-name-display">User Name</h2>
-                        <div class="role-pill" id="prof-role-display">Employee</div>
-                        
-                        <div class="profile-actions">
-                            <button id="btn-delete-photo" class="btn-text-danger" onclick="deleteProfilePhoto()" style="display: none;">
-                                <i class="fa-solid fa-trash"></i> Remove Photo
-                            </button>
-                        </div>
+                        <div class="role-badge" id="prof-role-display">Employee</div>
+                        <p class="identity-email" id="prof-email-display-sidebar">user@nileprise.com</p>
                     </div>
 
-                    <div class="profile-contact-preview">
-                        <div class="preview-item">
-                            <i class="fa-solid fa-envelope"></i>
-                            <span id="prof-email-display-sidebar">...</span>
-                        </div>
+                    <div class="identity-actions">
+                        <button id="btn-delete-photo" class="btn-text-danger" onclick="deleteProfilePhoto()" style="display: none;">
+                            <i class="fa-solid fa-trash"></i> Remove Photo
+                        </button>
                     </div>
 
-                    <button class="btn btn-primary btn-block save-btn-large" onclick="saveProfileData()">
-                        <i class="fa-solid fa-floppy-disk"></i> Save Changes
-                    </button>
+                    <div class="save-container">
+                        <button class="btn btn-primary btn-block btn-lg" onclick="saveProfileData()">
+                            <i class="fa-solid fa-floppy-disk"></i> Save Changes
+                        </button>
+                    </div>
                 </div>
 
-                <div class="profile-main glass-panel">
-                    
-                    <div class="form-section">
-                        <div class="section-title">
-                            <i class="fa-regular fa-user text-cyan"></i> Personal Information
-                        </div>
-                        <div class="form-grid-3">
-                            <div class="input-wrapper">
+                <div class="profile-editor-card glass-panel">
+                    <div class="profile-tabs">
+                        <button class="tab-link active" onclick="openProfileTab('tab-personal', this)">
+                            <i class="fa-regular fa-user"></i> Personal
+                        </button>
+                        <button class="tab-link" onclick="openProfileTab('tab-contact', this)">
+                            <i class="fa-solid fa-address-book"></i> Contact
+                        </button>
+                        <button class="tab-link" onclick="openProfileTab('tab-system', this)">
+                            <i class="fa-solid fa-shield-halved"></i> System
+                        </button>
+                    </div>
+
+                    <div id="tab-personal" class="tab-content active">
+                        <h3 class="tab-title">Basic Information</h3>
+                        <div class="modern-form-grid">
+                            <div class="input-group-modern">
                                 <label>First Name</label>
-                                <input type="text" id="prof-first" class="modern-input" placeholder="Enter First Name">
+                                <div class="input-wrapper">
+                                    <i class="fa-solid fa-signature"></i>
+                                    <input type="text" id="prof-first" placeholder="Enter First Name">
+                                </div>
                             </div>
-                            <div class="input-wrapper">
+                            <div class="input-group-modern">
                                 <label>Last Name</label>
-                                <input type="text" id="prof-last" class="modern-input" placeholder="Enter Last Name">
+                                <div class="input-wrapper">
+                                    <i class="fa-solid fa-signature"></i>
+                                    <input type="text" id="prof-last" placeholder="Enter Last Name">
+                                </div>
                             </div>
-                            <div class="input-wrapper">
+                            <div class="input-group-modern">
                                 <label>Date of Birth</label>
-                                <input type="date" id="prof-dob" class="modern-input">
+                                <div class="input-wrapper">
+                                    <i class="fa-regular fa-calendar"></i>
+                                    <input type="date" id="prof-dob">
+                                </div>
                             </div>
                         </div>
                     </div>
 
-                    <div class="form-section">
-                        <div class="section-title">
-                            <i class="fa-solid fa-address-book text-gold"></i> Contact Details
-                        </div>
-                        <div class="form-grid-2">
-                            <div class="input-wrapper">
+                    <div id="tab-contact" class="tab-content">
+                        <h3 class="tab-title">Contact Details</h3>
+                        <div class="modern-form-grid">
+                            <div class="input-group-modern">
                                 <label>Work Mobile</label>
-                                <input type="tel" id="prof-work-mobile" class="modern-input" placeholder="+1 (000) 000-0000">
+                                <div class="input-wrapper">
+                                    <i class="fa-solid fa-mobile-screen"></i>
+                                    <input type="tel" id="prof-work-mobile" placeholder="+1 (000) 000-0000">
+                                </div>
                             </div>
-                            <div class="input-wrapper">
+                            <div class="input-group-modern">
                                 <label>Personal Mobile</label>
-                                <input type="tel" id="prof-personal-mobile" class="modern-input" placeholder="+91 00000 00000">
+                                <div class="input-wrapper">
+                                    <i class="fa-solid fa-phone"></i>
+                                    <input type="tel" id="prof-personal-mobile" placeholder="+91 00000 00000">
+                                </div>
                             </div>
-                            <div class="input-wrapper full-width">
+                            <div class="input-group-modern full-width">
                                 <label>Personal Email</label>
-                                <input type="email" id="prof-personal-email" class="modern-input" placeholder="personal.email@gmail.com">
+                                <div class="input-wrapper">
+                                    <i class="fa-regular fa-envelope"></i>
+                                    <input type="email" id="prof-personal-email" placeholder="personal.email@gmail.com">
+                                </div>
                             </div>
                         </div>
                     </div>
 
-                    <div class="form-section">
-                        <div class="section-title">
-                            <i class="fa-solid fa-shield-halved text-purple"></i> System Data
-                        </div>
-                        <div class="form-grid-2">
-                            <div class="input-wrapper">
-                                <label>Designation <span class="badge-readonly">Locked</span></label>
-                                <input type="text" id="prof-designation" class="modern-input readonly" readonly>
+                    <div id="tab-system" class="tab-content">
+                        <h3 class="tab-title">System & Security</h3>
+                        <div class="modern-form-grid">
+                            <div class="input-group-modern">
+                                <label>Official Email <span class="badge-locked">Locked</span></label>
+                                <div class="input-wrapper locked">
+                                    <i class="fa-solid fa-envelope"></i>
+                                    <input type="email" id="prof-office-email" readonly>
+                                </div>
                             </div>
-                            <div class="input-wrapper">
-                                <label>Official Email <span class="badge-readonly">Locked</span></label>
-                                <input type="email" id="prof-office-email" class="modern-input readonly" readonly>
+                            <div class="input-group-modern">
+                                <label>Designation <span class="badge-locked">Locked</span></label>
+                                <div class="input-wrapper locked">
+                                    <i class="fa-solid fa-id-badge"></i>
+                                    <input type="text" id="prof-designation" readonly>
+                                </div>
                             </div>
                         </div>
                     </div>
+
                 </div>
             </div>
         </div>
@@ -573,9 +613,15 @@
   <div id="delete-modal" class="modal-overlay">
     <div class="glass-panel modal-box" style="max-width: 400px; text-align: center;">
       <div class="modal-body">
-        <div class="icon-box" style="margin: 0 auto 20px; background: rgba(239,68,68,0.2); color: var(--danger); width: 60px; height: 60px; border-radius: 50%; font-size: 1.5rem;"><i class="fa-solid fa-triangle-exclamation"></i></div>
+        <div class="icon-box" style="margin: 0 auto 20px; background: rgba(239,68,68,0.2); color: var(--danger); width: 60px; height: 60px; border-radius: 50%; font-size: 1.5rem; display:flex; align-items:center; justify-content:center;">
+          <i class="fa-solid fa-triangle-exclamation"></i>
+        </div>
+        
         <h3 style="margin-bottom: 10px; font-size: 1.2rem;">Confirm Deletion</h3>
-        <p style="color: var(--text-muted); margin-bottom: 30px;">Are you sure you want to permanently delete <span id="del-count" style="color: var(--text-main); font-weight: bold;">0</span> items?</p>
+        <p style="color: var(--text-muted); margin-bottom: 30px;">
+          Are you sure you want to permanently delete <span id="del-count" style="color: var(--text-main); font-weight: bold;">0</span> items?
+        </p>
+        
         <div style="display: flex; gap: 10px; justify-content: center;">
           <button class="btn" style="background: rgba(255,255,255,0.1); color: var(--text-main);" onclick="closeDeleteModal()">Cancel</button>
           <button class="btn btn-danger" onclick="executeDelete()">Yes, Delete</button>
