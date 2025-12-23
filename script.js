@@ -37,6 +37,7 @@ const ALLOWED_USERS = {
 const state = {
     user: null, 
     userRole: null, 
+    currentUserName: null, // NEW: Stores the mapped name (e.g., 'Asif')
     candidates: [], 
     onboarding: [],
     employees: [],
@@ -52,7 +53,7 @@ const state = {
     uploadTarget: { id: null, field: null },
 
     // PLACEMENT STATE
-    placementFilter: 'monthly', // 'monthly' or 'yearly'
+    placementFilter: 'monthly',
     placementDate: new Date().toISOString().slice(0, 7), 
 
     // FILTERS
@@ -67,7 +68,7 @@ const state = {
     modal: { id: null, type: null },
     pendingDelete: { type: null },
     metadata: {
-        recruiters: [], // Auto-populated from Employees
+        recruiters: [],
         techs: [
             "React", "Node.js", "Java", "Python", ".NET", 
             "AWS", "Azure", "DevOps", "Salesforce", "Data Science",
@@ -128,12 +129,20 @@ function init() {
                 state.user = user;
                 const email = user.email.toLowerCase();
                 const knownUser = ALLOWED_USERS[email];
-                state.userRole = knownUser ? knownUser.role : 'Admin';
-          
+                
+                // --- SECURITY CONTEXT SETUP ---
+                state.userRole = knownUser ? knownUser.role : 'Viewer'; // Default to Viewer if unknown
+                state.currentUserName = knownUser ? knownUser.name : (user.displayName || 'Unknown');
+                
+                // Hide specific buttons based on role
+                if (state.userRole === 'Employee') {
+                     // Employees cannot delete
+                     document.getElementById('btn-delete-selected').style.display = 'none';
+                }
+
                 updateUserProfile(user, knownUser);
                 switchScreen('app');
                 initRealtimeListeners();
-          
                 startAutoLogoutTimer();
             } else {
                 switchScreen('auth');
@@ -148,11 +157,8 @@ function init() {
         document.body.classList.add('light-mode');
     }
     
-    // Init Placements Picker
     const monthPicker = document.getElementById('placement-month-picker');
-    if(monthPicker) { 
-        monthPicker.value = new Date().toISOString().slice(0, 7); 
-    }
+    if(monthPicker) { monthPicker.value = new Date().toISOString().slice(0, 7); }
 }
 
 function switchScreen(screenName) {
@@ -185,7 +191,6 @@ dom.navItems.forEach(btn => {
         const clickedBtn = e.target.closest('.nav-item');
         clickedBtn.classList.add('active');
 
-        // Auto-close sidebar on mobile
         if (window.innerWidth <= 900) {
             document.querySelector('.sidebar').classList.remove('mobile-open');
             const overlay = document.getElementById('sidebar-overlay');
@@ -238,7 +243,7 @@ function updateUserProfile(user, hardcodedData) {
             if(document.getElementById('prof-work-mobile')) document.getElementById('prof-work-mobile').value = data.workMobile || '';
             if(document.getElementById('prof-personal-mobile')) document.getElementById('prof-personal-mobile').value = data.personalMobile || '';
             if(document.getElementById('prof-personal-email')) document.getElementById('prof-personal-email').value = data.personalEmail || '';
-          
+            
             let photoURL = data.photoURL || user.photoURL;
             if(photoURL) {
                 const avatarImg = document.getElementById('profile-main-img');
@@ -287,7 +292,6 @@ window.saveProfileData = () => {
    7. REAL-TIME DATA & LISTENERS
    ======================================================== */
 function initRealtimeListeners() {
-    // 1. Candidates Listener
     db.collection('candidates').orderBy('createdAt', 'desc').limit(200).onSnapshot(snap => {
         state.candidates = [];
         snap.forEach(doc => state.candidates.push({ id: doc.id, ...doc.data() }));
@@ -299,14 +303,12 @@ function initRealtimeListeners() {
         if(dom.headerUpdated) dom.headerUpdated.innerText = 'Synced';
     });
 
-    // 2. Onboarding Listener
     db.collection('onboarding').orderBy('createdAt', 'desc').onSnapshot(snap => {
         state.onboarding = [];
         snap.forEach(doc => state.onboarding.push({ id: doc.id, ...doc.data() }));
         renderOnboardingTable();
     });
 
-    // 3. Employees Listener (Auto-Recruiter Populate)
     db.collection('employees').orderBy('createdAt', 'desc').onSnapshot(snap => {
         state.employees = [];
         snap.forEach(doc => state.employees.push({ id: doc.id, ...doc.data() }));
@@ -315,12 +317,11 @@ function initRealtimeListeners() {
         const uniqueRecruiters = [...new Set(firstNames)].sort();
         state.metadata.recruiters = uniqueRecruiters;
         
-        renderDropdowns(); // Update dropdowns when employees change
+        renderDropdowns(); 
         renderEmployeeTable();
         updateDashboardStats();
     });
     
-    // 4. Users Listener (Birthdays)
     db.collection('users').onSnapshot(snap => {
         state.allUsers = [];
         snap.forEach(doc => {
@@ -342,7 +343,7 @@ window.checkBirthdays = () => {
 
     const birthdayPeople = state.allUsers.filter(user => {
         if (!user.dob) return false;
-        const userBorn = user.dob.substring(5); // YYYY-MM-DD -> MM-DD
+        const userBorn = user.dob.substring(5); 
         return userBorn === todayMatch;
     });
 
@@ -368,28 +369,45 @@ window.checkBirthdays = () => {
    8. RENDERERS & DROPDOWNS
    ======================================================== */
 function renderDropdowns() {
-    console.log("Rendering Dropdowns...", state.metadata);
-
-    // 1. Populate "All Recruiters" (Candidates View)
+    // Dropdowns for filtering
     const rSelect = document.getElementById('filter-recruiter');
     if (rSelect) {
         const options = state.metadata.recruiters.map(r => `<option value="${r}">${r}</option>`).join('');
         rSelect.innerHTML = `<option value="">All Recruiters</option>${options}`;
     }
 
-    // 2. Populate "All Tech" (Candidates View)
     const tSelect = document.getElementById('filter-tech');
     if (tSelect) {
         const options = state.metadata.techs.map(t => `<option value="${t}">${t}</option>`).join('');
         tSelect.innerHTML = `<option value="">All Tech</option>${options}`;
     }
 
-    // 3. Populate "All Recruiters" (Hub View)
     const hubRec = document.getElementById('hub-filter-recruiter');
     if (hubRec) {
         const options = state.metadata.recruiters.map(r => `<option value="${r}">${r}</option>`).join('');
         hubRec.innerHTML = `<option value="">All Recruiters</option>${options}`;
     }
+}
+
+// === MAIN FILTER LOGIC FOR CANDIDATES ===
+function getFilteredData(data, filters) {
+    let subset = data;
+
+    // --- ACCESS CONTROL: If Employee, show ONLY their own candidates ---
+    if (state.userRole === 'Employee' && state.currentUserName) {
+        subset = subset.filter(item => {
+            // Check if recruiter field matches mapped name
+            return item.recruiter === state.currentUserName;
+        });
+    }
+
+    return subset.filter(item => {
+        const matchesText = (item.first + ' ' + item.last + ' ' + (item.tech||'')).toLowerCase().includes(filters.text);
+        const matchesRec = filters.recruiter ? item.recruiter === filters.recruiter : true;
+        const matchesTech = filters.tech ? item.tech === filters.tech : true;
+        const matchesStatus = filters.status ? item.status === filters.status : true;
+        return matchesText && matchesRec && matchesTech && matchesStatus;
+    });
 }
 
 function renderCandidateTable() {
@@ -439,7 +457,13 @@ function renderCandidateTable() {
 }
 
 function renderHubTable() {
-    const filtered = state.candidates.filter(c => {
+    // --- ACCESS CONTROL: Hub View for Employees ---
+    let hubData = state.candidates;
+    if (state.userRole === 'Employee' && state.currentUserName) {
+        hubData = hubData.filter(c => c.recruiter === state.currentUserName);
+    }
+
+    const filtered = hubData.filter(c => {
         const matchesText = (c.first + ' ' + c.last).toLowerCase().includes(state.hubFilters.text);
         const matchesRec = state.hubFilters.recruiter ? c.recruiter === state.hubFilters.recruiter : true;
         return matchesText && matchesRec;
@@ -494,24 +518,24 @@ function renderHubTable() {
 
         if(isExpanded) {
             const inputDefault = state.hubDate; 
-          
+            
             const renderTimeline = (list, fieldName) => {
                 if(!list || list.length === 0) return `<li class="hub-log-item" style="justify-content:center; opacity:0.5; padding-left:0;">No records for selected date</li>`;
-              
+             
                 return list.map((entry, index) => {
                     const isLegacy = typeof entry === 'string';
                     const dateStr = isLegacy ? entry : entry.date;
                     const link = isLegacy ? '' : entry.link;
                     const dateObj = new Date(dateStr);
                     const niceDate = dateObj.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
-                  
+                 
                     let linkHtml = '';
                     if(link) {
                         const isEmail = link.includes('firebasestorage') || link.endsWith('.eml');
                         const icon = isEmail ? 'fa-envelope-open-text' : 'fa-arrow-up-right-from-square';
                         const clickAction = isEmail ? `onclick="viewEmailLog('${link}')"` : `href="${link}" target="_blank"`;
                         const btnClass = isEmail ? 'hub-link-btn is-email' : 'hub-link-btn';
-                      
+                     
                         if(isEmail) {
                             linkHtml = `<button class="${btnClass}" ${clickAction} title="Open Email"><i class="fa-solid ${icon}"></i></button>`;
                         } else {
@@ -538,7 +562,7 @@ function renderHubTable() {
             <tr class="hub-details-row">
                 <td colspan="8">
                     <div class="hub-details-wrapper" onclick="event.stopPropagation()">
-                    
+                   
                         <div class="hub-col cyan">
                             <div class="hub-col-header cyan"><i class="fa-solid fa-paper-plane"></i> Submission <span style="float:right; opacity:0.5">${subs.length}</span></div>
                             <div class="hub-input-group">
@@ -578,7 +602,15 @@ function renderHubTable() {
 }
 
 function renderEmployeeTable() {
-    const filtered = state.employees.filter(item => {
+    let filtered = state.employees;
+
+    // --- ACCESS CONTROL: Employee View ---
+    if (state.userRole === 'Employee') {
+        // Only show the employee whose official email matches logged in email
+        filtered = filtered.filter(e => e.officialEmail === state.user.email);
+    }
+
+    filtered = filtered.filter(item => {
         const searchText = state.empFilters.text;
         const fullName = (item.first + ' ' + item.last).toLowerCase();
         return fullName.includes(searchText);
@@ -614,7 +646,7 @@ function renderEmployeeTable() {
             <td onclick="inlineEdit('${c.id}', 'designation', 'employees', this)">${c.designation || '-'}</td>
             <td onclick="inlineEdit('${c.id}', 'workMobile', 'employees', this)">${c.workMobile || '-'}</td>
             <td onclick="inlineEdit('${c.id}', 'personalMobile', 'employees', this)">${c.personalMobile || '-'}</td>
-          
+         
             <td class="url-cell" onclick="inlineEdit('${c.id}', 'officialEmail', 'employees', this)">${c.officialEmail || ''}</td>
             <td class="url-cell" onclick="inlineEdit('${c.id}', 'personalEmail', 'employees', this)">${c.personalEmail || ''}</td>
         </tr>`;
@@ -622,6 +654,7 @@ function renderEmployeeTable() {
 }
 
 function renderOnboardingTable() {
+    // Note: Managers/Admin typically handle onboarding, but if employees need access to their own onboarding, filtering logic can be added here similarly.
     const filtered = state.onboarding.filter(item => {
         const searchText = state.onbFilters.text;
         const fullName = (item.first + ' ' + item.last).toLowerCase();
@@ -679,7 +712,13 @@ window.updatePlacementFilter = (type, btn) => {
 window.renderPlacementTable = () => {
     const monthVal = document.getElementById('placement-month-picker').value; 
     const yearVal = document.getElementById('placement-year-picker').value; 
-    const placedCandidates = state.candidates.filter(c => c.status === 'Placed');
+    
+    // Logic: Placed candidates usually viewed by Admins/Managers. 
+    // If Employees need to see only their OWN placements:
+    let placedCandidates = state.candidates.filter(c => c.status === 'Placed');
+    if (state.userRole === 'Employee' && state.currentUserName) {
+        placedCandidates = placedCandidates.filter(c => c.recruiter === state.currentUserName);
+    }
     
     const filtered = placedCandidates.filter(c => {
         if (!c.assigned) return false;
@@ -709,9 +748,10 @@ window.renderPlacementTable = () => {
                 <input type="date" class="date-input-modern" value="${c.assigned}" onchange="inlineDateEdit('${c.id}', 'assigned', 'candidates', this.value)">
             </td>
             <td>
-                <button class="btn-icon-small" style="color:#ef4444;" onclick="deletePlacement('${c.id}')" title="Permanently Delete">
+                ${state.userRole !== 'Employee' ? 
+                `<button class="btn-icon-small" style="color:#ef4444;" onclick="deletePlacement('${c.id}')" title="Permanently Delete">
                     <i class="fa-solid fa-trash"></i>
-                </button>
+                </button>` : ''}
             </td>
         </tr>`;
     }).join('');
@@ -720,18 +760,19 @@ window.renderPlacementTable = () => {
 };
 
 window.manualAddPlacement = () => {
+    // Only allow if appropriate (though UI hides button for non-admins usually)
     const today = new Date().toISOString().split('T')[0];
     db.collection('candidates').add({
         first: 'New',
         last: 'Candidate',
         tech: 'Technology',
-        status: 'Placed',       
-        assigned: today,        
+        status: 'Placed',      
+        assigned: today,       
         location: '',
         contract: '',
         createdAt: Date.now(),
         mobile: '',
-        recruiter: ''
+        recruiter: state.userRole === 'Employee' ? state.currentUserName : ''
     }).then(() => {
         showToast("New Placement Row Added");
         const currentMonth = today.slice(0, 7); 
@@ -752,16 +793,6 @@ window.deletePlacement = (id) => {
 /* ========================================================
    9. UTILITIES & ACTIONS
    ======================================================== */
-function getFilteredData(data, filters) {
-    return data.filter(item => {
-        const matchesText = (item.first + ' ' + item.last + ' ' + (item.tech||'')).toLowerCase().includes(filters.text);
-        const matchesRec = filters.recruiter ? item.recruiter === filters.recruiter : true;
-        const matchesTech = filters.tech ? item.tech === filters.tech : true;
-        const matchesStatus = filters.status ? item.status === filters.status : true;
-        return matchesText && matchesRec && matchesTech && matchesStatus;
-    });
-}
-
 function inlineEdit(id, field, collection, el) {
     if(el.querySelector('input')) return;
     const currentText = el.innerText === '-' ? '' : el.innerText;
@@ -797,6 +828,12 @@ function inlineDateEdit(id, field, collection, val) {
 }
 
 function editRecruiter(id, collection, el) {
+    // LOCK RECRUITER FIELD FOR EMPLOYEES
+    if (state.userRole === 'Employee') {
+        showToast("Access Denied: You cannot change the recruiter.");
+        return;
+    }
+
     if(el.querySelector('select')) return;
     const val = el.innerText; el.innerHTML = '';
     const sel = document.createElement('select'); sel.className = 'modern-select';
@@ -823,8 +860,11 @@ window.toggleSelectAll = (type, mainCheckbox) => {
     let currentData = [];
     if (type === 'cand') currentData = getFilteredData(state.candidates, state.filters);
     else if (type === 'emp') { 
+        // Logic duplicated from renderEmployeeTable for consistency
+        currentData = state.employees;
+        if(state.userRole === 'Employee') currentData = currentData.filter(e => e.officialEmail === state.user.email);
         const searchText = state.empFilters.text;
-        currentData = state.employees.filter(item => (item.first + ' ' + item.last).toLowerCase().includes(searchText));
+        currentData = currentData.filter(item => (item.first + ' ' + item.last).toLowerCase().includes(searchText));
     }
     else { 
         const searchText = state.onbFilters.text;
@@ -846,7 +886,7 @@ function updateSelectButtons(type) {
     if(type === 'cand') { btn = document.getElementById('btn-delete-selected'); countSpan = document.getElementById('selected-count'); }
     else if(type === 'emp') { btn = document.getElementById('btn-delete-employee'); countSpan = document.getElementById('emp-selected-count'); }
     else { btn = document.getElementById('btn-delete-onboarding'); countSpan = document.getElementById('onboarding-selected-count'); }
-    if (state.selection[type].size > 0) { 
+    if (state.selection[type].size > 0 && state.userRole !== 'Employee') { // Employees cannot delete bulk
         btn.style.display = 'inline-flex'; 
         if (countSpan) countSpan.innerText = state.selection[type].size; 
     } else { 
@@ -892,16 +932,30 @@ function setupEventListeners() {
     if(empSearch) { empSearch.addEventListener('input', e => { state.empFilters.text = e.target.value.toLowerCase(); renderEmployeeTable(); }); }
 
     // Add Buttons
-    document.getElementById('btn-add-candidate').addEventListener('click', () => { db.collection('candidates').add({ first: '', last: '', mobile: '', wa: '', tech: '', recruiter: '', status: 'Active', assigned: new Date().toISOString().split('T')[0], comments: '', createdAt: Date.now(), submissionLog: [], screeningLog: [], interviewLog: [] }).then(() => showToast("Inserted")); });
+    document.getElementById('btn-add-candidate').addEventListener('click', () => { 
+        // AUTOMATICALLY ASSIGN RECRUITER IF EMPLOYEE
+        const defaultRecruiter = state.userRole === 'Employee' ? state.currentUserName : '';
+        
+        db.collection('candidates').add({ 
+            first: '', last: '', mobile: '', wa: '', tech: '', 
+            recruiter: defaultRecruiter, // Auto-assigned
+            status: 'Active', 
+            assigned: new Date().toISOString().split('T')[0], 
+            comments: '', createdAt: Date.now(), 
+            submissionLog: [], screeningLog: [], interviewLog: [] 
+        }).then(() => showToast("Inserted")); 
+    });
     
     document.getElementById('btn-add-onboarding').addEventListener('click', () => { 
         db.collection('onboarding').add({ 
             first: '', last: '', dob: '', mobile: '', status: 'Onboarding', 
+            recruiter: state.userRole === 'Employee' ? state.currentUserName : '',
             assigned: new Date().toISOString().split('T')[0], comments: '', createdAt: Date.now() 
         }).then(() => showToast("Inserted")); 
     });
     
     document.getElementById('btn-add-employee').addEventListener('click', () => { 
+        if(state.userRole === 'Employee') return showToast("Permission Denied");
         db.collection('employees').add({ 
             first: '', last: '', dob: '', designation: '', 
             workMobile: '', personalMobile: '', officialEmail: '', personalEmail: '',
@@ -954,7 +1008,7 @@ function setupEventListeners() {
 
     document.querySelectorAll('.filter-btn').forEach(btn => {
         btn.addEventListener('click', () => {
-             if(btn.closest('#view-placements')) return; // Ignore placement buttons here
+             if(btn.closest('#view-placements')) return; 
              updateHubStats(btn.getAttribute('data-filter'), null);
         });
     });
@@ -985,6 +1039,7 @@ function setupEventListeners() {
    10. DATA OPS
    ======================================================== */
 window.seedData = () => {
+    if (state.userRole === 'Employee') return showToast("Permission Denied");
     const batch = db.batch();
     const techList = state.metadata.techs;
     const recList = state.metadata.recruiters.length > 0 ? state.metadata.recruiters : ['Test Recruiter'];
@@ -1105,12 +1160,19 @@ window.exportData = () => { if (state.candidates.length === 0) return showToast(
    11. DASHBOARD & CHARTS
    ======================================================== */
 function updateDashboardStats() { 
-    const total = state.candidates.length;
-    const active = state.candidates.filter(c => c.status === 'Active').length;
-    const inactive = state.candidates.filter(c => c.status === 'Inactive').length;
-    const placed = state.candidates.filter(c => c.status === 'Placed').length;
+    let calcData = state.candidates;
     
-    const techs = new Set(state.candidates.map(c=>c.tech)).size;
+    // FILTER DASHBOARD FOR EMPLOYEES
+    if (state.userRole === 'Employee' && state.currentUserName) {
+        calcData = calcData.filter(c => c.recruiter === state.currentUserName);
+    }
+
+    const total = calcData.length;
+    const active = calcData.filter(c => c.status === 'Active').length;
+    const inactive = calcData.filter(c => c.status === 'Inactive').length;
+    const placed = calcData.filter(c => c.status === 'Placed').length;
+    
+    const techs = new Set(calcData.map(c=>c.tech)).size;
     const recruiters = state.metadata.recruiters.length;
 
     if(document.getElementById('stat-total')) document.getElementById('stat-total').innerText = total;
@@ -1122,14 +1184,14 @@ function updateDashboardStats() {
     if(document.getElementById('stat-rec')) document.getElementById('stat-rec').innerText = recruiters;
     if(document.getElementById('current-date-display')) document.getElementById('current-date-display').innerText = new Date().toLocaleDateString();
 
-    const techData = getChartData('tech');
-    const recData = getChartData('recruiter');
+    const techData = getChartData(calcData, 'tech');
+    const recData = getChartData(calcData, 'recruiter');
 
     renderChart('chart-recruiter', recData, 'bar'); 
     renderChart('chart-tech', techData, 'doughnut');
 }
 
-function getChartData(key) { const counts = {}; state.candidates.forEach(c => counts[c[key]] = (counts[c[key]] || 0) + 1); return { labels: Object.keys(counts), data: Object.values(counts) }; }
+function getChartData(data, key) { const counts = {}; data.forEach(c => counts[c[key]] = (counts[c[key]] || 0) + 1); return { labels: Object.keys(counts), data: Object.values(counts) }; }
 let chartInstances = {}; 
 function renderChart(id, data, type) { 
     const ctx = document.getElementById(id);
@@ -1231,9 +1293,15 @@ window.updateHubStats = (filterType, dateVal) => {
         const t = new Date(dStr).getTime();
         return t >= startTimestamp && t < endTimestamp;
     };
+    
+    // --- ACCESS CONTROL: Hub Stats ---
+    let hubData = state.candidates;
+    if (state.userRole === 'Employee' && state.currentUserName) {
+        hubData = hubData.filter(c => c.recruiter === state.currentUserName);
+    }
 
-    if(state.candidates) {
-        state.candidates.forEach(c => {
+    if(hubData) {
+        hubData.forEach(c => {
             if(c.submissionLog) c.submissionLog.forEach(entry => { if(checkDateInRange(entry)) subCount++; });
             if(c.screeningLog) c.screeningLog.forEach(entry => { if(checkDateInRange(entry)) scrCount++; });
             if(c.interviewLog) c.interviewLog.forEach(entry => { if(checkDateInRange(entry)) intCount++; });
