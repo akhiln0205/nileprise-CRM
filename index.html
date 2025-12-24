@@ -24,8 +24,26 @@
   </div>
 
   <div id="toast" class="toast">
-    <i class="fa-solid fa-circle-info"></i>
-    <span id="toast-msg">Notification</span>
+    <div class="toast-icon" id="toast-icon-container">
+      <i class="fa-solid fa-circle-check"></i>
+    </div>
+    <div class="toast-content">
+      <span class="toast-title" id="toast-title">Success</span>
+      <span class="toast-message" id="toast-msg">Operation completed.</span>
+    </div>
+  </div>
+
+  <div id="birthday-card" class="birthday-card glass-panel">
+    <div class="bday-icon">
+      <i class="fa-solid fa-cake-candles"></i>
+    </div>
+    <div class="bday-content">
+      <h4>Happy Birthday! 🎉</h4>
+      <div id="bday-names" class="bday-names"></div>
+    </div>
+    <button class="bday-close" onclick="closeBirthdayCard()">
+      <i class="fa-solid fa-xmark"></i>
+    </button>
   </div>
 
   <input type="file" id="hub-file-input" accept=".eml,.msg" style="display:none;" onchange="handleHubFileSelect(this)">
@@ -118,8 +136,13 @@
           <button class="nav-item" data-target="view-candidates"><i class="fa-solid fa-users"></i> <span>Candidates</span></button>
           <button class="nav-item" data-target="view-hub"><i class="fa-solid fa-id-card"></i> <span>Candidate Hub</span></button>
           <button class="nav-item" data-target="view-employees"><i class="fa-solid fa-address-book"></i> <span>Employees</span></button>
+          
           <button class="nav-item" data-target="view-onboarding"><i class="fa-solid fa-user-check"></i> <span>Onboarding</span></button>
           <button class="nav-item" data-target="view-placements"><i class="fa-solid fa-trophy"></i> <span>Placements</span></button>
+
+          <button class="nav-item" id="nav-admin" data-target="view-admin" style="display: none;">
+            <i class="fa-solid fa-user-shield"></i> <span>Admin Panel</span>
+          </button>
 
           <button class="nav-item" data-target="view-profile"><i class="fa-solid fa-user-gear"></i> <span>Profile</span></button>
           <button class="nav-item" data-target="view-settings"><i class="fa-solid fa-gear"></i> <span>Settings</span></button>
@@ -127,13 +150,6 @@
       </aside>
 
       <main class="main-content">
-
-        <div id="birthday-bar" class="birthday-bar" style="display: none;">
-          <div class="ticker-wrap">
-            <div id="birthday-ticker-content" class="ticker-move">
-            </div>
-          </div>
-        </div>
 
         <header class="top-bar">
           <button id="btn-mobile-menu" class="btn-icon" style="margin-right: 10px; display: none;">
@@ -163,7 +179,7 @@
                 <span id="display-username" class="user-name">User</span>
               </div>
 
-              <button id="btn-logout" class="control-icon danger-hover" title="Logout">
+              <button id="btn-logout" class="control-icon danger-hover" title="Sign Out">
                 <i class="fa-solid fa-power-off"></i>
               </button>
             </div>
@@ -186,7 +202,6 @@
               <div class="kpi-content">
                 <span class="kpi-label">Total Candidates</span>
                 <h1 id="stat-total" class="kpi-value">0</h1>
-
                 <div style="display: flex; flex-direction: column; gap: 4px; font-size: 0.85rem; font-weight: 500; margin-top: 5px;">
                   <div style="color: #22c55e; display: flex; align-items: center; gap: 8px;">
                     <i class="fa-solid fa-arrow-up"></i>
@@ -197,7 +212,6 @@
                     <span><b id="stat-inactive-count">0</b> Database Inactive</span>
                   </div>
                 </div>
-
               </div>
               <div class="kpi-icon"><i class="fa-solid fa-users"></i></div>
             </div>
@@ -299,6 +313,9 @@
               <button id="btn-add-placement" class="btn btn-primary" onclick="manualAddPlacement()">
                 <i class="fa-solid fa-plus"></i> Add Placement
               </button>
+              <button id="btn-delete-placement" class="btn btn-danger" style="display: none;">
+                <i class="fa-solid fa-trash-can"></i> Delete (<span id="placement-selected-count">0</span>)
+              </button>
             </div>
 
             <div class="filters-group modern-filter-row">
@@ -326,20 +343,8 @@
           <div class="table-container glass-panel">
             <div class="table-wrapper">
               <table class="modern-table" id="placement-table">
-                <thead>
-                  <tr>
-                    <th>#</th>
-                    <th>First Name</th>
-                    <th>Last Name</th>
-                    <th>Tech</th>
-                    <th>Location</th>
-                    <th>Contract Type</th>
-                    <th>Placed Date</th>
-                    <th>Actions</th>
-                  </tr>
-                </thead>
-                <tbody id="placement-table-body">
-                </tbody>
+                <thead></thead>
+                <tbody id="placement-table-body"></tbody>
               </table>
             </div>
             <div class="footer-count"><small id="placement-footer-count">Showing 0 placed candidates</small></div>
@@ -465,6 +470,41 @@
               </table>
             </div>
             <div class="footer-count"><small id="onb-footer-count">Showing all records</small></div>
+          </div>
+        </div>
+
+        <div id="view-admin" class="content-view">
+          <div class="toolbar glass-panel">
+            <div class="left-actions">
+              <h3 style="margin:0; color:var(--text-main);">
+                <i class="fa-solid fa-users-gear text-cyan"></i> User Management
+              </h3>
+            </div>
+            <div class="filters-group modern-filter-row">
+              <div class="filter-pill">
+                <i class="fa-solid fa-search"></i>
+                <input type="text" id="admin-search" placeholder="Search Users..." oninput="renderAdminPanel()">
+              </div>
+              <button class="btn-circle-refresh" onclick="renderAdminPanel()"><i class="fa-solid fa-rotate-right"></i></button>
+            </div>
+          </div>
+
+          <div class="table-container glass-panel">
+            <div class="table-wrapper">
+              <table class="modern-table" id="admin-table">
+                <thead>
+                  <tr>
+                    <th>Name</th>
+                    <th>Email</th>
+                    <th>Role</th>
+                    <th>Joined Date</th>
+                    <th>Status</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="admin-table-body"></tbody>
+              </table>
+            </div>
           </div>
         </div>
 
@@ -625,6 +665,26 @@
 
       </main>
     </section>
+  </div>
+
+  <div class="quick-action-wrapper">
+    <div class="qa-menu" id="qa-menu">
+      <button class="qa-item" onclick="handleQuickAction('add-candidate')" style="transition-delay: 0.1s;">
+        <span class="qa-tooltip">Add Candidate</span>
+        <i class="fa-solid fa-user-plus"></i>
+      </button>
+      <button class="qa-item" onclick="handleQuickAction('go-hub')" style="transition-delay: 0.05s;">
+        <span class="qa-tooltip">Log Activity</span>
+        <i class="fa-solid fa-file-pen"></i>
+      </button>
+      <button class="qa-item" onclick="handleQuickAction('go-placements')">
+        <span class="qa-tooltip">Placements</span>
+        <i class="fa-solid fa-trophy"></i>
+      </button>
+    </div>
+    <button class="qa-fab" onclick="toggleQuickMenu()">
+      <i class="fa-solid fa-plus" id="qa-icon"></i>
+    </button>
   </div>
 
   <div id="delete-modal" class="modal-overlay">
